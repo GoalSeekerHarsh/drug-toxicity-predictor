@@ -11,11 +11,15 @@ venv/
 .venv/
 env/
 
-# Data (large files)
+# Data (large files – raw data excluded, but processed demo outputs included)
 data/raw/
 *.csv
 *.sdf
 *.xlsx
+# Allow ZINC demo sample and processed outputs for reproducibility
+!data/processed/zinc_demo_sample.csv
+!reports/zinc_screen_results.csv
+!reports/zinc_screen_summary.txt
 
 # Model artifacts
 models/*.pkl

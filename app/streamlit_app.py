@@ -263,7 +263,23 @@ with tab1:
 with tab2:
     st.markdown("### 📁 Batch Prediction")
     st.write("Upload a CSV file containing a column named `smiles`. The model will predict toxicity for all compounds.")
-    
+
+    st.info("""
+    💡 **Demo Tip:** A ready-to-use sample from the **ZINC-250k Drug Library** (1,000 molecules) 
+    is available at `data/processed/zinc_demo_sample.csv`. Upload it here to see large-scale virtual screening in action!
+    """, icon="🧪")
+
+    # Show pre-computed ZINC screen results if available
+    zinc_results_path = os.path.join(os.path.dirname(__file__), "..", "reports", "zinc_screen_results.csv")
+    if os.path.exists(zinc_results_path):
+        with st.expander("📊 View Pre-Computed ZINC-250k Screening Results (1,000 molecules)", expanded=False):
+            zinc_df = pd.read_csv(zinc_results_path)
+            n_toxic = (zinc_df["verdict"] == "TOXIC").sum()
+            col_a, col_b = st.columns(2)
+            col_a.metric("Molecules Screened", f"{len(zinc_df):,}")
+            col_b.metric("Predicted Toxic", f"{n_toxic} ({n_toxic/len(zinc_df)*100:.1f}%)")
+            st.dataframe(zinc_df.sort_values("toxicity_prob", ascending=False), use_container_width=True)
+
     uploaded_file = st.file_uploader("Upload CSV", type=["csv"])
     if uploaded_file is not None:
         try:

@@ -1,0 +1,17 @@
+ZINC-250k Virtual Screening Summary
+Molecules screened:   1,000
+Predicted TOXIC:      32 (3.2%)
+Predicted SAFE:       968 (96.8%)
+
+Top 10 Highest-Risk Molecules:
+                                                                                        smiles  toxicity_prob
+C[C@@]12C=CC(=O)C=C1CC[C@@H]1[C@@H]3CC[C@](O)(C(=O)COP(=O)([O-])[O-])[C@]3(C)C[C@@H](O)[C@H]12         0.8038
+  CC(=O)O[C@@H]1CC[C@@]23C(=O)O[C@]4(CC[C@]2(O)C1)[C@H]1CC[C@@H](C(=O)[O-])[C@@]1(C)CC[C@@H]34         0.7440
+                      COC1(OC)CC[C@@]2(C)[C@@H](CC[C@H]3[C@@H]2CC[C@]2(C)[C@@H](O)CC[C@H]32)C1         0.7198
+                                 C[C@@H]1[C@@H](OC(=O)c2ccc(CNC(N)=O)cc2)C[C@H]2C[C@@H]1C2(C)C         0.7158
+         COc1cc(C)cc2oc(=O)c(CC(=O)N3CCCC4=C[C@@H]5C[C@@H](C[NH+]6CCCC[C@@H]56)[C@H]43)c(C)c12         0.6074
+                                                       Cc1ccnc(NNC(=O)Nc2ccc(C(N)=O)c(Cl)c2)c1         0.5440
+                       C[C@H]1CCCN(c2nc3c(c(=O)[nH]2)[C@@H](c2cccc(Cl)c2)[C@@H](C#N)C(=O)N3)C1         0.5324
+                                                             CN(CCCc1ccccc1)c1ccc(N)c(N)[nH+]1         0.5269
+                                         Cc1ccc(C(=O)N[C@@H]2[C@H]3CCC[C@H]3[C@H]2c2ccccc2)cn1         0.5256
+                                                    CCOc1ccc([C@@H]2NC(=O)c3cc(Cl)ccc3N2)cc1OC         0.5184
