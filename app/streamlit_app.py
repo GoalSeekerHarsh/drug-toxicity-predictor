@@ -256,9 +256,9 @@ with tab1:
                     # Generate clean SHAP plot
                     shap.plots.waterfall(shap_values, max_display=10, show=False)
                     st.pyplot(fig, use_container_width=True)
-                plt.close(fig)
-            else:
-                st.info("SHAP Visualization not available for this molecule.")
+                    plt.close(fig)
+                else:
+                    st.info("SHAP Visualization not available for this molecule.")
 
 with tab2:
     st.markdown("### 📁 Batch Prediction")
