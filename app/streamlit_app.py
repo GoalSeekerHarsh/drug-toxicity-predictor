@@ -12,6 +12,7 @@ import pandas as pd
 import streamlit as st
 import joblib
 import matplotlib.pyplot as plt
+from datetime import datetime
 
 # Connect to src modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
@@ -118,7 +119,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for cleaner hackathon look
+# Custom CSS for cleaner hackathon look (fixed for light/dark mode)
 st.markdown("""
     <style>
     .main {background-color: #0E1117;}
@@ -129,6 +130,13 @@ st.markdown("""
         border-radius: 10px;
         text-align: center;
         border: 1px solid #30363D;
+        color: white;
+    }
+    .metric-card p {
+        color: #A0AEC0 !important;
+    }
+    .metric-card h3 {
+        color: white;
     }
     h1, h2, h3 {font-family: 'Inter', sans-serif;}
     </style>
@@ -190,38 +198,55 @@ with tab1:
             st.error(f"**Failed to analyze molecule:** {error_msg}")
         else:
             st.markdown("---")
-            st.markdown("### 2. Screening Results")
-        
-            # Top Metrics Row
-            col1, col2, col3 = st.columns(3)
-        
-            toxic_prob = probability[1] * 100
-        
-            with col1:
-                st.markdown(f"""
-                <div class="metric-card">
-                    <h3 style="color: {'#FF4B4B' if prediction == 1 else '#00CC96'}; margin:0;">
-                        {'⚠️ TOXIC' if prediction == 1 else '✅ SAFE'}
-                    </h3>
-                    <p style="color:gray; font-size:14px; margin:0;">Model Verdict</p>
-                </div>
-                """, unsafe_allow_html=True)
+            st.markdown("### 2. Advanced Screening Report")
             
-            with col2:
-                st.markdown(f"""
-                <div class="metric-card">
-                    <h3 style="margin:0;">{toxic_prob:.1f}%</h3>
-                    <p style="color:gray; font-size:14px; margin:0;">Toxicity Confidence Range</p>
-                </div>
-                """, unsafe_allow_html=True)
+            # --- Business Logic & Mapping ---
+            toxic_prob = probability[1]
             
-            with col3:
-                st.markdown(f"""
-                <div class="metric-card">
-                    <h3 style="margin:0;">{int(descriptors.get('MolWt', 0))} g/mol</h3>
-                    <p style="color:gray; font-size:14px; margin:0;">Molecular Weight</p>
-                </div>
-                """, unsafe_allow_html=True)
+            # Risk Level
+            if toxic_prob < 0.34: risk_level = "Low"
+            elif toxic_prob < 0.67: risk_level = "Medium"
+            else: risk_level = "High"
+            
+            # Confidence
+            confidence = "High" if (toxic_prob < 0.3 or toxic_prob > 0.7) else "Uncertain"
+            
+            # Recommendation
+            if risk_level == "Low" and confidence == "High":
+                recommendation = "✅ Proceed"
+            elif risk_level == "High" and confidence == "High":
+                recommendation = "🛑 Reject / High Risk"
+            else:
+                recommendation = "⚠️ Review Carefully"
+                
+            # Top Features Calculation
+            if shap_values is not None:
+                idx = np.argsort(np.abs(shap_values.values))[-3:][::-1]
+                top_features = ", ".join([shap_values.feature_names[i] for i in idx])
+            else:
+                top_features = "MolWt, LogP (SHAP unavailable)"
+            
+            # Timestamp
+            predict_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            # --- Presentation Grid ---
+            colA, colB = st.columns([1, 1])
+            with colA:
+                st.markdown("#### Meta Data")
+                st.markdown(f"**Molecule / SMILES:** `{smiles_input}`")
+                st.markdown(f"**Validity Check:** Valid (RDKit Parsed)")
+                st.markdown(f"**Prediction Timestamp:** {predict_time}")
+                st.markdown(f"**Recommended Action:** **{recommendation}**")
+                
+            with colB:
+                st.markdown("#### AI Inference")
+                lbl_color = "#FF4B4B" if prediction == 1 else "#00CC96"
+                lbl_text = "Toxic" if prediction == 1 else "Non-toxic"
+                st.markdown(f"**Predicted Toxicity Label:** <span style='color:{lbl_color}; font-weight:bold;'>{lbl_text}</span>", unsafe_allow_html=True)
+                st.markdown(f"**Toxicity Probability:** {toxic_prob:.3f} ({(toxic_prob*100):.1f}%)")
+                st.markdown(f"**Risk Level:** {risk_level}")
+                st.markdown(f"**Model Confidence:** {confidence}")
+                st.markdown(f"**Top Contributing Features:** *{top_features}*")
 
             st.write("") # Spacing
         
@@ -235,7 +260,7 @@ with tab1:
                     if mol:
                         # RDKit drawing with a clean white background
                         img = Draw.MolToImage(mol, size=(300, 300), fitImage=True)
-                        st.image(img, use_container_width=True)
+                        st.image(img, width=300)
             
                 st.markdown("#### Key Properties")
                 props = {
@@ -244,7 +269,6 @@ with tab1:
                     "Hydrogen Acceptors": descriptors.get("NumHAcceptors", 0),
                     "Rotatable Bonds": descriptors.get("NumRotatableBonds", 0),
                 }
-                # Clean dataframe layout
                 st.dataframe(pd.DataFrame(list(props.items()), columns=["Property", "Value"]), hide_index=True, use_container_width=True)
 
             with bottom_right:
@@ -253,7 +277,6 @@ with tab1:
             
                 if shap_values is not None:
                     fig, ax = plt.subplots(figsize=(6, 4))
-                    # Generate clean SHAP plot
                     shap.plots.waterfall(shap_values, max_display=10, show=False)
                     st.pyplot(fig, use_container_width=True)
                     plt.close(fig)
@@ -292,14 +315,54 @@ with tab2:
                 
                 with st.spinner(f"Analyzing {len(batch_df)} compounds..."):
                     results = []
-                    for smi in batch_df[s_col].dropna():
-                        # We use predict_and_explain but ignore SHAP for batch speed
-                        pred, prob, desc, _, err = predict_and_explain(str(smi), artifact)
+                    runtime_stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    
+                    for idx, smi in batch_df[s_col].dropna().items():
+                        pred, prob, desc, shap_vals, err = predict_and_explain(str(smi), artifact)
+                        
+                        base_row = {
+                            "ID": idx + 1,
+                            "SMILES": smi,
+                            "Timestamp": runtime_stamp,
+                        }
+                        
                         if err:
-                            results.append({"SMILES": smi, "Verdict": "ERROR", "Probability": "N/A"})
+                            base_row.update({
+                                "Validity": "Invalid", "Label": "ERROR", "Probability": "N/A",
+                                "Risk Level": "N/A", "Confidence": "N/A", 
+                                "Top Features": "N/A", "Recommendation": "Reject / Bad Data"
+                            })
                         else:
-                            verdict = "TOXIC" if pred == 1 else "SAFE"
-                            results.append({"SMILES": smi, "Verdict": verdict, "Probability": f"{prob[1]*100:.1f}%"})
+                            t_prob = prob[1]
+                            
+                            # Computed Fields
+                            r_level = "Low" if t_prob < 0.34 else ("Medium" if t_prob < 0.67 else "High")
+                            conf = "High" if (t_prob < 0.3 or t_prob > 0.7) else "Uncertain"
+                            
+                            if r_level == "Low" and conf == "High":
+                                rec = "Proceed"
+                            elif r_level == "High" and conf == "High":
+                                rec = "Reject"
+                            else:
+                                rec = "Review Carefully"
+                                
+                            if shap_vals is not None:
+                                top_idx = np.argsort(np.abs(shap_vals.values))[-3:][::-1]
+                                top_feats = ", ".join([shap_vals.feature_names[i] for i in top_idx])
+                            else:
+                                top_feats = "N/A"
+                                
+                            base_row.update({
+                                "Validity": "Valid",
+                                "Label": "Toxic" if pred == 1 else "Non-toxic",
+                                "Probability": round(t_prob, 3),
+                                "Risk Level": r_level,
+                                "Confidence": conf,
+                                "Top Features": top_feats,
+                                "Recommendation": rec
+                            })
+                        
+                        results.append(base_row)
                     
                     results_df = pd.DataFrame(results)
                     st.success("Batch Analysis Complete!")
