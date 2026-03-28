@@ -59,13 +59,39 @@ def prepare_data(test_size=0.2, random_state=42):
 
     print(f"Dataset split: {len(y_train)} train | {len(y_test)} test")
     
-    # Scale Features
-    print("Scaling features...")
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
+    # Scale Features via Unsupervised ZINC Chemical Space Baseline
+    print("Normalizing features via ZINC-250k Global Chemical Space baseline...")
+    zinc_scaler_path = os.path.join(MODELS_DIR, "zinc_chemical_space_scaler.pkl")
+    if not os.path.exists(zinc_scaler_path):
+        raise FileNotFoundError(f"Missing {zinc_scaler_path} - please run src/zinc_baseline.py first.")
+        
+    zinc_artifact = joblib.load(zinc_scaler_path)
+    scaler = zinc_artifact["scaler"]
+    continuous_cols = zinc_artifact["feature_names"]
     
-    return X_train_scaled, X_test_scaled, y_train, y_test, scaler, feature_names
+    # Identify Morgan Fingerprints (which are binary 0/1 and should NOT be scaled)
+    fp_cols = [col for col in feature_names if col.startswith("FP_")]
+    
+    # Convert string names to integer indices because X_train is a numpy array
+    cont_indices = [feature_names.index(col) for col in continuous_cols]
+    fp_indices = [feature_names.index(col) for col in fp_cols]
+    
+    # Transform continuous subset
+    X_train_cont_scaled = scaler.transform(X_train[:, cont_indices])
+    X_test_cont_scaled = scaler.transform(X_test[:, cont_indices])
+    
+    # Convert FPs to numpy arrays
+    X_train_fp = X_train[:, fp_indices]
+    X_test_fp = X_test[:, fp_indices]
+    
+    # Re-combine into massive aligned arrays
+    X_train_scaled = np.hstack([X_train_cont_scaled, X_train_fp])
+    X_test_scaled = np.hstack([X_test_cont_scaled, X_test_fp])
+    
+    # Because we hstacked continuous first, then FP, the final feature_names list must mirror this exact order
+    final_feature_names = continuous_cols + fp_cols
+    
+    return X_train_scaled, X_test_scaled, y_train, y_test, scaler, final_feature_names
 
 
 # ══════════════════════════════════════════════════════════════

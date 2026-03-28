@@ -136,24 +136,35 @@ def predict_and_explain(smiles_or_name, artifact):
     feature_names = artifact["feature_names"]
     
     # Safely build feature vector matching EXACTLY what the model expects
-    feature_vector = []
+    # The ZINC scaler only normalizes global physical properties (Continuous), 
+    # not the discrete Morgan Fingerprints (FP). We must partition them.
+    cont_features = []
+    fp_features = []
+    
     for name in feature_names:
         if name.startswith("FP_"):
             try:
                 bit_idx = int(name.split("_")[1])
-                feature_vector.append(fp[bit_idx] if bit_idx < len(fp) else 0.0)
+                fp_features.append(fp[bit_idx] if bit_idx < len(fp) else 0.0)
             except (ValueError, IndexError):
-                feature_vector.append(0.0)
+                fp_features.append(0.0)
         else:
-            feature_vector.append(desc.get(name, 0.0))
+            cont_features.append(desc.get(name, 0.0))
             
-    feature_vector = np.array(feature_vector).reshape(1, -1)
-    feature_vector = np.nan_to_num(feature_vector, nan=0, posinf=0, neginf=0)
+    # Process continuous descriptors
+    cont_vector = np.array(cont_features).reshape(1, -1)
+    cont_vector = np.nan_to_num(cont_vector, nan=0, posinf=0, neginf=0)
     
     try:
-        feature_vector_scaled = artifact["scaler"].transform(feature_vector)
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            cont_vector_scaled = artifact["scaler"].transform(cont_vector)
     except Exception as e:
         return None, None, None, None, f"Data scaling error: {str(e)}", None
+        
+    fp_vector = np.array(fp_features).reshape(1, -1)
+    feature_vector_scaled = np.hstack([cont_vector_scaled, fp_vector])
     
     try:
         model = artifact["model"]
@@ -162,9 +173,9 @@ def predict_and_explain(smiles_or_name, artifact):
     except Exception as e:
         return None, None, None, None, f"Model prediction error: {str(e)}", None
 
-    # We use a 50% threshold now that we removed the false-positive 
-    # boosting weights. This naturally achieves high precision.
-    STRICT_PROB_THRESHOLD = 0.50
+    # We use a 38% threshold now that we removed the false-positive 
+    # boosting weights (improves precision over ZINC space).
+    STRICT_PROB_THRESHOLD = 0.38
     prediction = 1 if prob >= STRICT_PROB_THRESHOLD else 0
 
     metadata = {
