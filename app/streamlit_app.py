@@ -331,7 +331,9 @@ with tab1:
             # Display Comprehensive Fields
             col_a, col_b = st.columns(2)
             with col_a:
-                st.markdown(f"**Input SMILES:** `{meta.get('input_smiles', smiles_input)}`")
+                if meta.get("resolved_name"):
+                    st.markdown(f"**Chemical Name:** `{meta['resolved_name']}`")
+                st.markdown(f"**Canonical SMILES:** `{meta.get('input_smiles', smiles_input)}`")
                 st.markdown(f"**Validity Check:** Valid ✅")
                 st.markdown(f"**Predicted Label:** {'**TOXIC** ⚠️' if prediction == 1 else '**Non-Toxic** ✅'}")
                 st.markdown(f"**Toxicity Probability:** {probability[1]*100:.1f}%")
