@@ -41,8 +41,8 @@ MODELS_DIR = os.path.join(os.path.dirname(__file__), "..", "models")
 TUNED_MODEL_PATH = os.path.join(MODELS_DIR, "tuned_xgboost_model.pkl")
 BASELINE_MODEL_PATH = os.path.join(MODELS_DIR, "baseline_best_model.pkl")
 
-@st.cache_resource
-def load_model_file():
+@st.cache_resource(show_spinner=False)
+def load_model_file_v2():
     """Load the trained model artifact safely."""
     if os.path.exists(TUNED_MODEL_PATH):
         return joblib.load(TUNED_MODEL_PATH), "Tuned XGBoost"
@@ -232,7 +232,7 @@ with st.sidebar:
     selected_example = st.selectbox("Select a preset compound:", ["Custom Input"] + list(examples.keys()))
     
     st.markdown("---")
-    artifact, model_type = load_model_file()
+    artifact, model_type = load_model_file_v2()
     if artifact:
         st.success(f"**Backend Status:** Online\n\nModel: {model_type}")
     else:
