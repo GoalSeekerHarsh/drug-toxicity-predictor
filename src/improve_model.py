@@ -29,6 +29,7 @@ from sklearn.metrics import (
     roc_auc_score,
     f1_score,
     recall_score,
+    precision_score,
     confusion_matrix
 )
 
@@ -82,13 +83,11 @@ def tune_xgboost(X_train, y_train, random_state=42):
     print("\nStarting Hyperparameter Tuning for XGBoost...")
     print("This may take a few minutes as we test multiple parameter combinations.")
     
-    # Calculate class imbalance weight
-    # Example: If 95% non-toxic, 5% toxic -> ratio is 19:1. scale_pos_weight = 19.
-    n_neg = (y_train == 0).sum()
-    n_pos = (y_train == 1).sum()
-    sp_weight = n_neg / n_pos if n_pos > 0 else 1.0
+    # For Precision-First: we drop the scale_pos_weight entirely. We want the model
+    # to naturally favor the vast majority of safe compounds.
+    sp_weight = 1.0
     
-    print(f"Set scale_pos_weight to {sp_weight:.2f} due to class imbalance.")
+    print(f"Set scale_pos_weight to {sp_weight:.2f} (Strict Precision over Recall).")
 
     # 1. Define the base model
     xgb_base = xgb.XGBClassifier(
@@ -100,8 +99,9 @@ def tune_xgboost(X_train, y_train, random_state=42):
     )
 
     # 2. Define the exact parameters we want to test
+    # (Reduced tree depth prevents memorizing complex structures -> cuts false positives)
     param_grid = {
-        'max_depth': [3, 5, 7],         # Tree complexity
+        'max_depth': [2, 3, 5],         # Tree complexity
         'learning_rate': [0.01, 0.1],   # Step size at each iteration
         'subsample': [0.8, 1.0]         # % of data used per tree (prevents overfitting)
     }
@@ -111,11 +111,11 @@ def tune_xgboost(X_train, y_train, random_state=42):
     cv = StratifiedKFold(n_splits=3, shuffle=True, random_state=random_state)
 
     # 4. Run the Grid Search
-    # We score models based on ROC-AUC, as it's the most robust metric for imbalanced data.
+    # We score models based on PRECISION (Correctness > Complete catching)
     grid_search = GridSearchCV(
         estimator=xgb_base,
         param_grid=param_grid,
-        scoring='roc_auc',
+        scoring='precision',
         cv=cv,
         verbose=1,
         n_jobs=-1 # Use all cores
@@ -127,7 +127,7 @@ def tune_xgboost(X_train, y_train, random_state=42):
     print(" Tuning Complete!")
     print("="*50)
     print(f" Best Parameters found: {grid_search.best_params_}")
-    print(f" Best Cross-Validation ROC-AUC: {grid_search.best_score_:.4f}")
+    print(f" Best Cross-Validation Precision: {grid_search.best_score_:.4f}")
 
     return grid_search.best_estimator_ # Return the tuned model
 
@@ -145,14 +145,16 @@ def evaluate_and_save(model, X_test, y_test, scaler, feature_names):
     roc_auc = roc_auc_score(y_test, y_proba)
     f1 = f1_score(y_test, y_pred)
     recall = recall_score(y_test, y_pred)
+    precision = precision_score(y_test, y_pred)
     cm = confusion_matrix(y_test, y_pred)
 
     print(f"\n{'='*50}")
-    print(f" 📊 Final Test Set Evaluation (Tuned XGBoost)")
+    print(f" 📊 Final Test Set Evaluation (Precision Tuned XGBoost)")
     print(f"{'='*50}")
-    print(f" ROC-AUC: {roc_auc:.4f}")
-    print(f" F1 Score: {f1:.4f}")
-    print(f" Recall:   {recall:.4f}")
+    print(f" ROC-AUC:   {roc_auc:.4f}")
+    print(f" Precision: {precision:.4f}  <-- THE MOST IMPORTANT METRIC NOW")
+    print(f" Recall:    {recall:.4f}")
+    print(f" F1 Score:  {f1:.4f}")
     print("\n Confusion Matrix:")
     print("                    Predicted")
     print("                  Non-toxic  Toxic")

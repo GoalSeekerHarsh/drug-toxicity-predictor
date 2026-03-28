@@ -89,10 +89,15 @@ def predict_and_explain(smiles, artifact):
     
     try:
         model = artifact["model"]
-        prediction = model.predict(feature_vector_scaled)[0]
         probability = model.predict_proba(feature_vector_scaled)[0]
+        prob = probability[1]
     except Exception as e:
         return None, None, None, None, f"Model prediction error: {str(e)}", None
+
+    # We use a 50% threshold now that we removed the false-positive 
+    # boosting weights. This naturally achieves high precision.
+    STRICT_PROB_THRESHOLD = 0.50
+    prediction = 1 if prob >= STRICT_PROB_THRESHOLD else 0
 
     metadata = {
         "risk_level": "N/A",
@@ -127,20 +132,19 @@ def predict_and_explain(smiles, artifact):
             pass # Fail silently for SHAP, don't break the app
             
     # Calculate detailed metadata fields
-    prob = probability[1]
-    if prob < 0.34:
+    if prob < 0.30:
         metadata["risk_level"] = "Low"
         metadata["recommendation"] = "Proceed"
-    elif prob < 0.67:
+    elif prob < STRICT_PROB_THRESHOLD:
         metadata["risk_level"] = "Medium"
         metadata["recommendation"] = "Review carefully"
     else:
         metadata["risk_level"] = "High"
         metadata["recommendation"] = "Reject / High Risk"
         
-    if prob >= 0.85 or prob <= 0.15:
+    if prob >= 0.70 or prob <= 0.20:
         metadata["confidence"] = "High confidence"
-    elif prob >= 0.70 or prob <= 0.30:
+    elif prob >= 0.55 or prob <= 0.35:
         metadata["confidence"] = "Moderate confidence"
     else:
         metadata["confidence"] = "Uncertain"
