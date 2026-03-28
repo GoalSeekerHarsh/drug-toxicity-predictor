@@ -57,6 +57,37 @@ def predict_and_explain(smiles, artifact):
     if mol is None:
         return None, None, None, None, "Invalid SMILES string. RDKit could not parse it.", None
     
+    # ── HYBRID ALERT SYSTEM (AOT Knowledge Base) ─────────────────
+    # We maintain a Hardcoded Registry of known acute toxins that are 
+    # mathematically invisible to Tox21 models due to dataset scope limitations.
+    KNOWN_TOXINS = {
+        'C=O': 'Formaldehyde',
+        'CN=C=O': 'Methyl Isocyanate (MIC)',
+        'C#N': 'Hydrogen Cyanide',
+        'c1ccccc1': 'Benzene',
+        'O=C(Cl)Cl': 'Phosgene',
+        '[AsH3]': 'Arsine'
+    }
+    
+    # 1. Standardize the user's input so C=O matches O=C
+    canonical_smiles = Chem.MolToSmiles(mol)
+    
+    # 2. Hard Override Check
+    if canonical_smiles in KNOWN_TOXINS:
+        toxin_name = KNOWN_TOXINS[canonical_smiles]
+        meta = {
+            "risk_level": "CRITICAL HAZARD",
+            "recommendation": "Reject (Lethal)",
+            "confidence": "100% (Database Match)",
+            "top_features": f"Matched OSHA/EPA Priority Toxin: {toxin_name}",
+            "is_hardcoded": True # Flag so UI skips SHAP waterfall
+        }
+        # Compute basic descriptors so UI rendering doesn't break
+        desc = compute_descriptors(mol) or {}
+        # prediction=1 (Toxic), prob=0.99 
+        return 1, [0.01, 0.999], desc, None, None, meta
+    
+    # ── Standard ML Inference Pipeline ───────────────────────────
     try:
         desc = compute_descriptors(mol)
         fp = compute_morgan_fingerprint(mol, radius=2, n_bits=1024)
@@ -193,8 +224,9 @@ with st.sidebar:
         "Ethanol (Safe)": "CCO",
         "Aspirin (Safe)": "CC(=O)Oc1ccccc1C(=O)O",
         "Caffeine (Borderline)": "Cn1c(=O)c2c(ncn2C)n(C)c1=O",
-        "Aniline (Toxic)": "Nc1ccccc1",
-        "Dinitrobenzene (Toxic)": "O=[N+]([O-])c1cc(C(F)(F)F)cc([N+](=O)[O-])c1Cl",
+        "Dinitrobenzene (ML Toxic)": "O=[N+]([O-])c1cc(C(F)(F)F)cc([N+](=O)[O-])c1Cl",
+        "MIC (Known Toxin)": "CN=C=O",
+        "Formaldehyde (Known Toxin)": "C=O"
     }
     
     selected_example = st.selectbox("Select a preset compound:", ["Custom Input"] + list(examples.keys()))
@@ -322,16 +354,22 @@ with tab1:
 
             with bottom_right:
                 st.markdown("#### AI Transparency (Why?)")
-                st.write("The chart below (SHAP Waterfall) explains the math behind the prediction. **Red bars** represent molecular subsystems that push the drug toward toxicity. **Blue bars** pull it toward safety.")
-            
-                if shap_values is not None:
-                    fig, ax = plt.subplots(figsize=(6, 4))
-                    # Generate clean SHAP plot
-                    shap.plots.waterfall(shap_values, max_display=10, show=False)
-                    st.pyplot(fig, use_container_width=True)
-                    plt.close(fig)
+                
+                if meta.get("is_hardcoded", False):
+                    st.error("### 🛑 ML BYPASS TRIGGERED")
+                    st.markdown(f"**Chemical identity verified against Ahead-Of-Time (AOT) Known Toxins Registry.**")
+                    st.markdown(f"Because this is an actively tracked priority toxin, mathematical ML screening (Tox21) has been bypassed. The compound is categorically **Lethal / Critical Hazard**.")
                 else:
-                    st.info("SHAP Visualization not available for this molecule.")
+                    st.write("The chart below (SHAP Waterfall) explains the math behind the prediction. **Red bars** represent molecular subsystems that push the drug toward toxicity. **Blue bars** pull it toward safety.")
+                
+                    if shap_values is not None:
+                        fig, ax = plt.subplots(figsize=(6, 4))
+                        # Generate clean SHAP plot
+                        shap.plots.waterfall(shap_values, max_display=10, show=False)
+                        st.pyplot(fig, use_container_width=True)
+                        plt.close(fig)
+                    else:
+                        st.info("SHAP Visualization not available for this molecule.")
 
 with tab2:
     st.markdown("### 📁 Batch Prediction")
