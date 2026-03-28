@@ -12,6 +12,7 @@ import pandas as pd
 import streamlit as st
 import joblib
 import matplotlib.pyplot as plt
+import requests
 
 # Connect to src modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
@@ -51,11 +52,45 @@ def load_model_file_v2():
     else:
         return None, None
 
-def predict_and_explain(smiles, artifact):
+def resolve_to_smiles(query):
+    """
+    Query the NIH PubChem REST API to convert a common chemical name 
+    (e.g., 'Aspirin') into a Canonical SMILES string.
+    """
+    query = query.strip()
+    if not query:
+        return None, None
+        
+    url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{query}/property/SMILES/JSON"
+    try:
+        response = requests.get(url, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            # Extract the actual SMILES string
+            smiles = data['PropertyTable']['Properties'][0]['SMILES']
+            return smiles, query
+    except Exception:
+        pass
+    return None, None
+
+def predict_and_explain(smiles_or_name, artifact):
     """Safely compute features, predict, and generate SHAP values."""
-    mol = smiles_to_mol(smiles)
+    resolved_name = None
+    
+    # 1. First see if it's already a valid SMILES string
+    mol = smiles_to_mol(smiles_or_name)
+    input_smiles = smiles_or_name
+    
+    # 2. If it's not a SMILES, maybe it's a common name like "Aspirin"
     if mol is None:
-        return None, None, None, None, "Invalid SMILES string. RDKit could not parse it.", None
+        fetched_smiles, resolved_name = resolve_to_smiles(smiles_or_name)
+        if fetched_smiles:
+            mol = smiles_to_mol(fetched_smiles)
+            input_smiles = fetched_smiles
+            
+    # 3. If it is STILL None, it's totally invalid
+    if mol is None:
+        return None, None, None, None, "Invalid SMILES string or Unknown Chemical Name. RDKit and PubChem could not parse it.", None
     
     # ── HYBRID ALERT SYSTEM (AOT Knowledge Base) ─────────────────
     # We maintain a Hardcoded Registry of known acute toxins that are 
@@ -80,7 +115,9 @@ def predict_and_explain(smiles, artifact):
             "recommendation": "Reject (Lethal)",
             "confidence": "100% (Database Match)",
             "top_features": f"Matched OSHA/EPA Priority Toxin: {toxin_name}",
-            "is_hardcoded": True # Flag so UI skips SHAP waterfall
+            "is_hardcoded": True, # Flag so UI skips SHAP waterfall
+            "resolved_name": resolved_name,
+            "input_smiles": input_smiles
         }
         # Compute basic descriptors so UI rendering doesn't break
         desc = compute_descriptors(mol) or {}
@@ -162,6 +199,7 @@ def predict_and_explain(smiles, artifact):
         except Exception:
             pass # Fail silently for SHAP, don't break the app
             
+            
     # Calculate detailed metadata fields
     if prob < 0.30:
         metadata["risk_level"] = "Low"
@@ -179,6 +217,10 @@ def predict_and_explain(smiles, artifact):
         metadata["confidence"] = "Moderate confidence"
     else:
         metadata["confidence"] = "Uncertain"
+        
+    # Append the resolved name and exact SMILES to pass to the UI
+    metadata["resolved_name"] = resolved_name
+    metadata["input_smiles"] = input_smiles
             
     return prediction, probability, desc, shap_values, None, metadata
 
@@ -267,9 +309,9 @@ tab1, tab2 = st.tabs(["Single Molecule Screening", "Batch Upload (CSV)"])
 with tab1:
     st.markdown("### 1. Enter Molecule")
     smiles_input = st.text_input(
-        label="SMILES Formula", 
+        label="Chemical Name or SMILES", 
         value=default_smiles,
-        help="Simplified Molecular-Input Line-Entry System"
+        help="Type a common name like 'Aspirin' or a SMILES string like 'CCO'."
     )
 
     # Run Prediction
@@ -280,13 +322,16 @@ with tab1:
         if error_msg:
             st.error(f"**Failed to analyze molecule:** {error_msg}")
         else:
+            if meta.get("resolved_name"):
+                st.success(f"🔍 Automatically resolved **'{meta['resolved_name']}'** to Canonical SMILES via NIH PubChem Database.")
+                
             st.markdown("---")
             st.markdown("### 2. Screening Report")
             
             # Display Comprehensive Fields
             col_a, col_b = st.columns(2)
             with col_a:
-                st.markdown(f"**Input SMILES:** `{smiles_input}`")
+                st.markdown(f"**Input SMILES:** `{meta.get('input_smiles', smiles_input)}`")
                 st.markdown(f"**Validity Check:** Valid ✅")
                 st.markdown(f"**Predicted Label:** {'**TOXIC** ⚠️' if prediction == 1 else '**Non-Toxic** ✅'}")
                 st.markdown(f"**Toxicity Probability:** {probability[1]*100:.1f}%")
