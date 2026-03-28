@@ -243,6 +243,44 @@ def get_single_endpoint(df, endpoint="NR-AR", smiles_col="smiles"):
     return subset
 
 
+def get_multi_endpoint(df, smiles_col="smiles"):
+    """Create an aggregate toxicity label across ALL 12 Tox21 assays.
+
+    What this does:
+        - Looks at all 12 toxicity columns for each molecule.
+        - If the molecule is TOXIC (1) in ANY of the 12 assays → label = 1.
+        - If the molecule is SAFE (0) in ALL tested assays   → label = 0.
+        - Drops rows where NO assay was tested (all NaN).
+
+    Why this is better than single endpoint:
+        NR-AR alone only catches androgen receptor disruptors (4.3% of molecules).
+        Multi-endpoint catches stress response, estrogen disruption, aromatase
+        inhibition, p53 activation, and more → covers 36.7% of molecules.
+    """
+    assay_cols = [c for c in df.columns if c not in [smiles_col, "mol_id"]]
+    print(f"\n  📊 Multi-Endpoint Aggregation")
+    print(f"     Using {len(assay_cols)} assays: {assay_cols}")
+
+    # Keep only rows that have at least one assay tested
+    has_any_label = df[assay_cols].notna().any(axis=1)
+    subset = df[has_any_label].copy()
+
+    # Aggregate: toxic if ANY endpoint fires (max across row, ignoring NaN)
+    subset["toxicity"] = subset[assay_cols].max(axis=1).fillna(0).astype(int)
+
+    result = subset[[smiles_col, "toxicity"]].copy()
+
+    toxic = (result["toxicity"] == 1).sum()
+    non_toxic = (result["toxicity"] == 0).sum()
+    total = len(result)
+
+    print(f"     Total tested: {total}")
+    print(f"     Toxic (any assay):  {toxic} ({toxic/total*100:.1f}%)")
+    print(f"     Non-toxic (all):    {non_toxic} ({non_toxic/total*100:.1f}%)")
+
+    return result
+
+
 def save_cleaned(df, filename="tox21_cleaned.csv"):
     """Save the cleaned DataFrame to data/processed/."""
     os.makedirs(PROCESSED_DATA_DIR, exist_ok=True)
@@ -280,9 +318,9 @@ if __name__ == "__main__":
     # Step 5: Remove duplicates
     df = remove_duplicates(df)
 
-    # Step 6: Extract endpoint and save
-    endpoint_df = get_single_endpoint(df)
-    save_cleaned(endpoint_df)
+    # Step 6: Extract multi-endpoint aggregate label and save
+    endpoint_df = get_multi_endpoint(df)
+    save_cleaned(endpoint_df, filename="labels.csv")
 
     # Also save the full cleaned dataset (all 12 endpoints) for later use
     save_cleaned(df, filename="tox21_all_endpoints_cleaned.csv")

@@ -188,8 +188,9 @@ with st.sidebar:
     examples = {
         "Ethanol (Safe)": "CCO",
         "Aspirin (Safe)": "CC(=O)Oc1ccccc1C(=O)O",
-        "Caffeine (Safe)": "Cn1c(=O)c2c(ncn2C)n(C)c1=O",
-        "Toxic Example": "O=C(O)CCC(=O)c1ccc(-c2ccccc2)cc1",
+        "Caffeine (Borderline)": "Cn1c(=O)c2c(ncn2C)n(C)c1=O",
+        "Aniline (Toxic)": "Nc1ccccc1",
+        "Dinitrobenzene (Toxic)": "O=[N+]([O-])c1cc(C(F)(F)F)cc([N+](=O)[O-])c1Cl",
     }
     
     selected_example = st.selectbox("Select a preset compound:", ["Custom Input"] + list(examples.keys()))
@@ -203,7 +204,18 @@ with st.sidebar:
 
 # Main layout
 st.title("Chemical Toxicity Screening")
-st.write("Scan a molecule's SMILES representation to predict in-vitro toxicity (NR-AR endpoint) and understand why the AI made its decision.")
+st.write("Scan a molecule's SMILES representation to predict in-vitro toxicity across **12 Tox21 biological assays** (Nuclear Receptor + Stress Response pathways) and understand why the AI made its decision.")
+
+with st.expander("⚠️ Model Scope & Limitations"):
+    st.markdown("""
+    **What this model measures:** This AI is trained on the [Tox21 dataset](https://tripod.nih.gov/tox21/), which tests molecules against 12 specific *in-vitro* biochemical assay endpoints:
+    - **Nuclear Receptor disruption:** Androgen (NR-AR), Estrogen (NR-ER), Aromatase, PPAR-gamma, AhR
+    - **Stress Response pathways:** ARE, ATAD5, HSE, MMP, p53
+
+    **What this model does NOT measure:** Acute poisoning, respiratory toxicity, organ damage, or carcinogenicity via mechanisms not covered by the 12 Tox21 assays. For example, Formaldehyde is a known carcinogen, but it does not trigger any of the 12 Tox21 pathways, so our model (correctly per the training data) labels it as non-toxic.
+
+    **Bottom line:** A "Non-toxic" prediction means the molecule is unlikely to disrupt these specific biological pathways, NOT that it's universally safe.
+    """)
 
 if artifact is None:
     st.stop()

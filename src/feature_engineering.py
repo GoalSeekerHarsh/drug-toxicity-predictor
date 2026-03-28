@@ -383,7 +383,7 @@ if __name__ == "__main__":
     print("=" * 60)
 
     # Load the cleaned data from data_loader.py
-    input_path = os.path.join(PROCESSED_DATA_DIR, "tox21_cleaned.csv")
+    input_path = os.path.join(PROCESSED_DATA_DIR, "labels.csv")
 
     if not os.path.exists(input_path):
         print(f"❌ File not found: {input_path}")
