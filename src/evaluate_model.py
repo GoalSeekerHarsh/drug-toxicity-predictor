@@ -39,8 +39,17 @@ Usage:
 """
 
 import os
+import tempfile
 import joblib
 import pandas as pd
+MPL_DIR = os.path.join(tempfile.gettempdir(), "toxpredict-mpl")
+CACHE_DIR = os.path.join(tempfile.gettempdir(), "toxpredict-cache")
+os.makedirs(MPL_DIR, exist_ok=True)
+os.makedirs(CACHE_DIR, exist_ok=True)
+os.environ.setdefault("MPLCONFIGDIR", MPL_DIR)
+os.environ.setdefault("XDG_CACHE_HOME", CACHE_DIR)
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import (
@@ -60,9 +69,21 @@ MODELS_DIR = os.path.join(os.path.dirname(__file__), "..", "models")
 REPORTS_DIR = os.path.join(os.path.dirname(__file__), "..", "reports")
 
 try:
-    from .pipeline_utils import resolve_label_column, stratified_train_val_test_split, transform_feature_frame
+    from .pipeline_utils import (
+        DEFAULT_HAZARD_THRESHOLD,
+        classify_probabilities,
+        resolve_label_column,
+        stratified_train_val_test_split,
+        transform_feature_frame,
+    )
 except ImportError:
-    from pipeline_utils import resolve_label_column, stratified_train_val_test_split, transform_feature_frame  # type: ignore
+    from pipeline_utils import (  # type: ignore
+        DEFAULT_HAZARD_THRESHOLD,
+        classify_probabilities,
+        resolve_label_column,
+        stratified_train_val_test_split,
+        transform_feature_frame,
+    )
 
 def load_test_data():
     """Load data and recreate the exact test set for evaluation."""
@@ -85,10 +106,13 @@ def load_model_pipeline(model_filename="baseline_best_model.pkl"):
         raise FileNotFoundError(f"Model not found at {filepath}. Run a training script first.")
     
     artifact = joblib.load(filepath)
+    if not isinstance(artifact, dict) or "model" not in artifact:
+        raise ValueError(f"{filepath} is not a model artifact.")
     model_name = artifact.get("model_name", model_filename.split('.')[0].replace('_', ' ').title())
-    return artifact["model"], artifact["scaler"], model_name, artifact["feature_names"]
+    hazard_threshold = float(artifact.get("hazard_threshold", DEFAULT_HAZARD_THRESHOLD))
+    return artifact["model"], artifact["scaler"], model_name, artifact["feature_names"], hazard_threshold
 
-def evaluate_and_plot(model, scaler, X_test, y_test, model_name, feature_names):
+def evaluate_and_plot(model, scaler, X_test, y_test, model_name, feature_names, artifact_id=None, decision_threshold=DEFAULT_HAZARD_THRESHOLD):
     """Generate all critical metrics and visual plots."""
     print(f"\nEvaluating: {model_name}")
     print("="*60)
@@ -96,8 +120,8 @@ def evaluate_and_plot(model, scaler, X_test, y_test, model_name, feature_names):
     # 1. Prepare Data & Predict
     artifact = {"model": model, "scaler": scaler, "feature_names": feature_names}
     X_test_scaled = transform_feature_frame(X_test, artifact)
-    y_pred = model.predict(X_test_scaled)
     y_proba = model.predict_proba(X_test_scaled)[:, 1] # Probability of class 1
+    y_pred = classify_probabilities(y_proba, decision_threshold=decision_threshold)
 
     # 2. Calculate Strict Metrics
     precision = precision_score(y_test, y_pred)
@@ -107,6 +131,7 @@ def evaluate_and_plot(model, scaler, X_test, y_test, model_name, feature_names):
     print(f"Precision: {precision:.4f} (When it predicts Toxic, it is correct {precision*100:.1f}% of the time)")
     print(f"Recall:    {recall:.4f} (It caught {recall*100:.1f}% of all actual Toxic drugs)")
     print(f"F1 Score:  {f1:.4f} (Harmonic mean of both)")
+    print(f"Decision Threshold: {decision_threshold:.2f} (matches CRITICAL HAZARD cutoff)")
     
     # 3. AUC Metrics
     roc_auc = roc_auc_score(y_test, y_proba)
@@ -156,7 +181,8 @@ def evaluate_and_plot(model, scaler, X_test, y_test, model_name, feature_names):
     
     # Save the plot
     os.makedirs(REPORTS_DIR, exist_ok=True)
-    plot_name = f"{model_name.replace(' ', '_').lower()}_evaluation.png"
+    save_label = artifact_id or model_name.replace(" ", "_").lower()
+    plot_name = f"{save_label.replace('.pkl', '').lower()}_evaluation.png"
     save_path = os.path.join(REPORTS_DIR, plot_name)
     plt.savefig(save_path, dpi=150, bbox_inches="tight")
     print(f"\n💾 Saved visualization suite to: {save_path}")
@@ -167,15 +193,40 @@ if __name__ == "__main__":
     X_test, y_test = load_test_data()
     
     # Try to find any trained models in the models directory
-    model_files = glob.glob(os.path.join(MODELS_DIR, "*.pkl"))
-    
-    if not model_files:
+    preferred_order = [
+        "baseline_best_model.pkl",
+        "best_model.pkl",
+        "tuned_xgboost_model_with_chembl.pkl",
+        "tuned_xgboost_model_without_chembl.pkl",
+        "tuned_xgboost_model.pkl",
+    ]
+    available = {os.path.basename(path): path for path in glob.glob(os.path.join(MODELS_DIR, "*.pkl"))}
+    ordered_names = [name for name in preferred_order if name in available]
+    ordered_names.extend(sorted(name for name in available if name not in ordered_names))
+
+    if not ordered_names:
         print("No .pkl files found in models/. Please run baseline_models.py first.")
     else:
-        for model_path in model_files:
-            filename = os.path.basename(model_path)
-            # Evaluate each found model
-            model, scaler, model_name, feature_names = load_model_pipeline(filename)
-            evaluate_and_plot(model, scaler, X_test, y_test, model_name, feature_names)
+        seen_model_files = set()
+        for filename in ordered_names:
+            try:
+                model, scaler, model_name, feature_names, hazard_threshold = load_model_pipeline(filename)
+            except ValueError:
+                print(f"Skipping non-model artifact: {filename}")
+                continue
+            if filename in {"tuned_xgboost_model.pkl"} and "best_model.pkl" in seen_model_files:
+                print(f"Skipping duplicate compatibility alias: {filename}")
+                continue
+            seen_model_files.add(filename)
+            evaluate_and_plot(
+                model,
+                scaler,
+                X_test,
+                y_test,
+                model_name,
+                feature_names,
+                artifact_id=filename,
+                decision_threshold=hazard_threshold,
+            )
     
     print("\n✅ Evaluation complete.")

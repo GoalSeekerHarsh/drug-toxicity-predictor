@@ -17,6 +17,7 @@ from src.pipeline_utils import (  # noqa: E402
     load_model_artifact,
     load_priority_toxin_dict,
     lookup_priority_toxin,
+    lookup_priority_toxin_by_name,
     predict_with_model,
 )
 
@@ -36,6 +37,21 @@ def test_priority_toxin_dictionary_contains_expected_entries():
     assert formaldehyde["name"] == "Formaldehyde"
     assert mic is not None
     assert "Methyl Isocyanate" in mic["name"]
+    assert troglitazone is not None
+    assert "troglitazone" in troglitazone["name"].lower()
+
+
+def test_priority_toxin_dictionary_supports_offline_name_lookup():
+    toxin_dict = load_priority_toxin_dict()
+
+    formaldehyde = lookup_priority_toxin_by_name("Formaldehyde", toxin_dict)
+    mic = lookup_priority_toxin_by_name("MIC", toxin_dict)
+    troglitazone = lookup_priority_toxin_by_name("Troglitazone", toxin_dict)
+
+    assert formaldehyde is not None
+    assert formaldehyde["canonical_smiles"] == "C=O"
+    assert mic is not None
+    assert "methyl isocyanate" in mic["name"].lower()
     assert troglitazone is not None
     assert "troglitazone" in troglitazone["name"].lower()
 
@@ -88,6 +104,7 @@ def test_processed_labels_and_features_stay_aligned():
     assert len(labels) == len(features)
     assert list(labels.columns)[:2] == ["smiles", "toxicity"]
     assert sum(col.startswith("FP_") for col in features.columns) == 1024
+    assert float(features["Ipc"].abs().max()) < 100.0
 
 
 def test_compare_chembl_experiment_imports_as_module_and_script():

@@ -252,6 +252,11 @@ def remove_duplicates(df, smiles_col="smiles"):
 def get_single_endpoint(df, endpoint="NR-AR", smiles_col="smiles"):
     """Extract a single toxicity assay for binary classification.
 
+    Legacy helper:
+        The maintained training pipeline now uses `get_multi_endpoint()` so the
+        main label reflects any positive Tox21 assay. This function remains for
+        debugging and experiments on individual endpoints.
+
     What this does:
         - Picks one toxicity column (default: NR-AR, androgen receptor)
         - Drops rows where that assay was NOT TESTED (NaN)

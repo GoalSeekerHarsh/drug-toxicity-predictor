@@ -23,6 +23,7 @@ try:
         load_model_artifact,
         load_priority_toxin_dict,
         lookup_priority_toxin,
+        lookup_priority_toxin_by_name,
         predict_with_model,
     )
 except ImportError:
@@ -87,26 +88,38 @@ def resolve_to_smiles(query):
 def predict_and_explain(smiles_or_name, artifact):
     """Safely compute features, predict, and generate SHAP values."""
     resolved_name = None
+    resolved_via = None
     toxin_dict = load_toxin_dictionary()
+    toxin_entry = None
     
     # 1. First see if it's already a valid SMILES string
     mol = smiles_to_mol(smiles_or_name)
     input_smiles = smiles_or_name
     
-    # 2. If it's not a SMILES, maybe it's a common name like "Aspirin"
+    # 2. If it's not a SMILES, first try the offline priority dictionary by name.
+    if mol is None:
+        toxin_entry = lookup_priority_toxin_by_name(smiles_or_name, toxin_dict)
+        if toxin_entry:
+            resolved_name = toxin_entry.get("name", smiles_or_name)
+            resolved_via = "priority_dictionary"
+            input_smiles = toxin_entry.get("canonical_smiles", smiles_or_name)
+            mol = smiles_to_mol(input_smiles)
+
+    # 3. If it is still not a SMILES, maybe it is a common name like "Aspirin"
     if mol is None:
         fetched_smiles, resolved_name = resolve_to_smiles(smiles_or_name)
         if fetched_smiles:
+            resolved_via = "pubchem"
             mol = smiles_to_mol(fetched_smiles)
             input_smiles = fetched_smiles
             
-    # 3. If it is STILL None, it's totally invalid
+    # 4. If it is STILL None, it's totally invalid
     if mol is None:
         return None, None, None, None, "Invalid SMILES string or Unknown Chemical Name. RDKit and PubChem could not parse it.", None
     
     # ── PRIORITY TOXIN DICTIONARY BYPASS (pre-ML) ────────────────
     # Canonicalize the user's structure then do an exact dictionary match.
-    toxin_entry = lookup_priority_toxin(mol, toxin_dict)
+    toxin_entry = toxin_entry or lookup_priority_toxin(mol, toxin_dict)
     if toxin_entry:
         canonical_smiles = toxin_entry.get("canonical_smiles")
         toxin_name = toxin_entry.get("name", "Unknown")
@@ -124,6 +137,7 @@ def predict_and_explain(smiles_or_name, artifact):
             "top_features": f"Matched: {toxin_name} — {hazard_class} [{toxin_source}]{extra_str}",
             "is_hardcoded": True, # Flag so UI skips SHAP waterfall
             "resolved_name": resolved_name,
+            "resolved_via": resolved_via,
             "input_smiles": input_smiles,
             "canonical_smiles": canonical_smiles,
             "toxin_name": toxin_name,
@@ -138,11 +152,13 @@ def predict_and_explain(smiles_or_name, artifact):
     
     # ── Standard ML Inference Pipeline ───────────────────────────
     try:
+        safe_threshold = float(artifact.get("safe_threshold", DEFAULT_SAFE_THRESHOLD))
+        hazard_threshold = float(artifact.get("hazard_threshold", DEFAULT_HAZARD_THRESHOLD))
         inference = predict_with_model(
             mol,
             artifact,
-            safe_threshold=DEFAULT_SAFE_THRESHOLD,
-            hazard_threshold=DEFAULT_HAZARD_THRESHOLD,
+            safe_threshold=safe_threshold,
+            hazard_threshold=hazard_threshold,
         )
         desc = inference["descriptors"]
         probability = inference["probability"]
@@ -212,6 +228,7 @@ def predict_and_explain(smiles_or_name, artifact):
         
     # Append the resolved name and exact SMILES to pass to the UI
     metadata["resolved_name"] = resolved_name
+    metadata["resolved_via"] = resolved_via
     metadata["input_smiles"] = input_smiles
     metadata["canonical_smiles"] = canonical_smiles
     metadata["verdict"] = verdict
@@ -325,8 +342,10 @@ with tab1:
         if error_msg:
             st.error(f"**Failed to analyze molecule:** {error_msg}")
         else:
-            if meta.get("resolved_name"):
+            if meta.get("resolved_name") and meta.get("resolved_via") == "pubchem":
                 st.success(f"🔍 Automatically resolved **'{meta['resolved_name']}'** to Canonical SMILES via NIH PubChem Database.")
+            elif meta.get("resolved_name") and meta.get("resolved_via") == "priority_dictionary":
+                st.info(f"📋 Matched **'{meta['resolved_name']}'** directly from the offline Priority Toxin Dictionary before ML inference.")
                 
             st.markdown("---")
             st.markdown("### 2. Screening Report")

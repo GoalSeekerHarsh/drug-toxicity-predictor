@@ -1,10 +1,11 @@
 {
   "selection_metric": "precision_then_pr_auc",
+  "selection_threshold": 0.62,
   "selected_model": "Random Forest",
   "validation": {
     "logistic_regression": {
-      "roc_auc": 0.5,
-      "pr_auc": 0.36980491942324,
+      "roc_auc": 0.6582262031837379,
+      "pr_auc": 0.4944872426033015,
       "precision": 0.0,
       "recall": 0.0,
       "f1": 0.0,
@@ -14,63 +15,67 @@
           0
         ],
         [
-          436,
+          435,
           0
         ]
-      ]
+      ],
+      "decision_threshold": 0.62
     },
     "random_forest": {
-      "roc_auc": 0.8161525923913715,
-      "pr_auc": 0.7523774815029803,
-      "precision": 0.7542857142857143,
-      "recall": 0.6055045871559633,
-      "f1": 0.6717557251908397,
+      "roc_auc": 0.8044955987685835,
+      "pr_auc": 0.7097288119763652,
+      "precision": 0.7614678899082569,
+      "recall": 0.3816091954022989,
+      "f1": 0.5084226646248086,
       "confusion_matrix": [
         [
-          657,
-          86
+          691,
+          52
         ],
         [
-          172,
-          264
+          269,
+          166
         ]
-      ]
+      ],
+      "decision_threshold": 0.62
     }
   },
   "test": {
     "logistic_regression": {
-      "roc_auc": 0.5,
-      "pr_auc": 0.36895674300254455,
+      "roc_auc": 0.6524280255565353,
+      "pr_auc": 0.4802141707939166,
       "precision": 0.0,
       "recall": 0.0,
       "f1": 0.0,
       "confusion_matrix": [
         [
-          744,
+          743,
           0
         ],
         [
           435,
           0
         ]
-      ]
+      ],
+      "decision_threshold": 0.62
     },
     "random_forest": {
-      "roc_auc": 0.8000108144852305,
-      "pr_auc": 0.734156349657151,
-      "precision": 0.7677419354838709,
-      "recall": 0.5471264367816092,
-      "f1": 0.6389261744966444,
+      "roc_auc": 0.793635618260856,
+      "pr_auc": 0.737476432399779,
+      "precision": 0.8155339805825242,
+      "recall": 0.38620689655172413,
+      "f1": 0.5241809672386896,
       "confusion_matrix": [
         [
-          672,
-          72
+          705,
+          38
         ],
         [
-          197,
-          238
+          267,
+          168
         ]
-      ]
+      ],
+      "decision_threshold": 0.62
     }
   }
 }

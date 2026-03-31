@@ -52,6 +52,7 @@ except ImportError:
 
 # ── Configuration ──────────────────────────────────────────────
 PROCESSED_DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "processed")
+LOG_COMPRESSED_DESCRIPTORS = {"Ipc"}
 
 
 # ══════════════════════════════════════════════════════════════
@@ -130,6 +131,27 @@ def compute_descriptors(mol):
     return desc_dict
 
 
+def stabilize_descriptor_dict(desc_dict):
+    """Compress numerically explosive descriptor values without changing the schema.
+
+    RDKit's Ipc descriptor can reach astronomically large values for some large or
+    highly branched molecules. That destabilizes linear models and can even freeze
+    some solvers. We keep the descriptor, but apply a signed log1p compression so
+    it remains informative while staying numerically tractable.
+    """
+    if desc_dict is None:
+        return None
+
+    stabilized = dict(desc_dict)
+    for name in LOG_COMPRESSED_DESCRIPTORS:
+        value = stabilized.get(name)
+        if value is None or pd.isna(value):
+            continue
+        stabilized[name] = float(np.sign(value) * np.log1p(abs(value)))
+
+    return stabilized
+
+
 def build_descriptor_dataframe(smiles_list, show_progress=True):
     """Convert a list of SMILES into a DataFrame of molecular descriptors.
 
@@ -168,7 +190,7 @@ def build_descriptor_dataframe(smiles_list, show_progress=True):
             continue
 
         # Step B: Compute all ~200 descriptors for this molecule
-        desc = compute_descriptors(mol)
+        desc = stabilize_descriptor_dict(compute_descriptors(mol))
         all_descriptors.append(desc)
 
     # Step C: Filter out the None entries (invalid molecules)

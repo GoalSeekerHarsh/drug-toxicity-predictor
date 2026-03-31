@@ -9,8 +9,8 @@ It simply trains two XGBoost models from the already-built processed files:
 Outputs:
   - models/tuned_xgboost_model_with_chembl.pkl
   - models/tuned_xgboost_model_without_chembl.pkl
-  - reports/chembl_ablation_with.json
-  - reports/chembl_ablation_without.json
+  - reports/chembl_ablation_with_chembl.json
+  - reports/chembl_ablation_without_chembl.json
 
 Usage:
   python src/compare_chembl_experiment.py
@@ -24,6 +24,7 @@ import os
 try:
     # When executed as a module: python -m src.compare_chembl_experiment
     from .improve_model import prepare_data, tune_xgboost, evaluate_and_save  # type: ignore
+    from .pipeline_utils import save_feature_pipeline_artifact  # type: ignore
 except ImportError:
     # When executed as a script: python src/compare_chembl_experiment.py
     import sys
@@ -32,6 +33,7 @@ except ImportError:
     if SRC_DIR not in sys.path:
         sys.path.insert(0, SRC_DIR)
     from improve_model import prepare_data, tune_xgboost, evaluate_and_save  # type: ignore
+    from pipeline_utils import save_feature_pipeline_artifact  # type: ignore
 
 
 def run_one(include_chembl: bool, chembl_weight: float = 0.5, random_state: int = 42):
@@ -96,7 +98,14 @@ if __name__ == "__main__":
     artifact = joblib.load(best_src)
     joblib.dump(artifact, best_dst)
     joblib.dump(artifact, tuned_alias)
+    pipeline_path = save_feature_pipeline_artifact(
+        artifact["scaler"],
+        artifact["feature_names"],
+        filename="feature_pipeline.pkl",
+        extra_metadata={"selected_model_tag": best_tag},
+    )
     print(f"💾 Updated best model at {best_dst}")
     print(f"💾 Updated compatibility alias at {tuned_alias}")
+    print(f"💾 Updated shared feature pipeline at {pipeline_path}")
 
     print("\n✅ Done. Compare `reports/chembl_ablation_*.json`.")

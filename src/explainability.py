@@ -9,8 +9,17 @@ Functions:
 """
 
 import os
+import tempfile
 import numpy as np
 import pandas as pd
+
+MPL_DIR = os.path.join(tempfile.gettempdir(), "toxpredict-mpl")
+CACHE_DIR = os.path.join(tempfile.gettempdir(), "toxpredict-cache")
+os.makedirs(MPL_DIR, exist_ok=True)
+os.makedirs(CACHE_DIR, exist_ok=True)
+os.environ.setdefault("MPLCONFIGDIR", MPL_DIR)
+os.environ.setdefault("XDG_CACHE_HOME", CACHE_DIR)
+
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -130,8 +139,8 @@ if __name__ == "__main__":
     # Scale and sample for SHAP (use 500 samples for speed)
     X = transform_feature_frame(features, artifact)
     sample_size = min(500, len(X))
-    np.random.seed(42)
-    sample_idx = np.random.choice(len(X), sample_size, replace=False)
+    rng = np.random.default_rng(42)
+    sample_idx = rng.choice(len(X), sample_size, replace=False)
     X_sample = X[sample_idx]
     
     # Compute SHAP

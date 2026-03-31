@@ -23,21 +23,27 @@ from sklearn.ensemble import RandomForestClassifier
 
 try:
     from .pipeline_utils import (
+        DEFAULT_HAZARD_THRESHOLD,
+        DEFAULT_SAFE_THRESHOLD,
         build_sample_weights,
         compute_metrics_dict,
         get_feature_partitions,
         resolve_label_column,
         save_metrics_report,
+        save_feature_pipeline_artifact,
         stratified_train_val_test_split,
         transform_feature_frame,
     )
 except ImportError:
     from pipeline_utils import (  # type: ignore
+        DEFAULT_HAZARD_THRESHOLD,
+        DEFAULT_SAFE_THRESHOLD,
         build_sample_weights,
         compute_metrics_dict,
         get_feature_partitions,
         resolve_label_column,
         save_metrics_report,
+        save_feature_pipeline_artifact,
         stratified_train_val_test_split,
         transform_feature_frame,
     )
@@ -125,8 +131,10 @@ def train_logistic_regression(X_train, y_train, sample_weight=None, random_state
     print("Training Logistic Regression...")
     model = LogisticRegression(
         class_weight="balanced", # Helps handle the class imbalance
-        max_iter=1000,           # Allows more time for the algorithm to find a solution
-        random_state=random_state
+        max_iter=5000,           # Gives the optimizer enough room after descriptor compression
+        solver="saga",           # More stable than lbfgs on this wide descriptor + fingerprint matrix
+        tol=0.005,               # A slightly looser tolerance keeps this baseline practical to rerun
+        random_state=random_state,
     )
     fit_kwargs = {}
     if sample_weight is not None:
@@ -154,16 +162,15 @@ def train_random_forest(X_train, y_train, sample_weight=None, random_state=42):
 #  STEP 5: Evaluate Models
 # ══════════════════════════════════════════════════════════════
 
-def evaluate_model(model, X_eval, y_eval, model_name):
+def evaluate_model(model, X_eval, y_eval, model_name, decision_threshold=DEFAULT_HAZARD_THRESHOLD):
     """
     Evaluate the model on the test set and print key metrics.
     
     Returns a dictionary of the metrics.
     """
     # Get predictions (0 or 1) and probabilities (0.0 to 1.0)
-    y_pred = model.predict(X_eval)
     y_proba = model.predict_proba(X_eval)[:, 1] # Probability of being 'toxic' (class 1)
-    metrics = compute_metrics_dict(y_eval, y_pred, y_proba)
+    metrics = compute_metrics_dict(y_eval, y_proba, decision_threshold=decision_threshold)
     cm = np.array(metrics["confusion_matrix"])
 
     print(f"\n{'='*50}")
@@ -174,6 +181,7 @@ def evaluate_model(model, X_eval, y_eval, model_name):
     print(f" Precision: {metrics['precision']:.4f}")
     print(f" Recall:    {metrics['recall']:.4f}")
     print(f" F1 Score:  {metrics['f1']:.4f}")
+    print(f" Decision Threshold: {metrics['decision_threshold']:.2f}")
     
     print("\n Confusion Matrix:")
     print("                    Predicted")
@@ -200,11 +208,20 @@ def save_best_model(best_model_dict, scaler, feature_names):
         "model": best_model_dict["model"],
         "scaler": scaler,
         "feature_names": feature_names,
-        "model_name": best_model_dict["name"]
+        "model_name": best_model_dict["name"],
+        "safe_threshold": float(DEFAULT_SAFE_THRESHOLD),
+        "hazard_threshold": float(DEFAULT_HAZARD_THRESHOLD),
     }
     
     joblib.dump(artifact, filepath)
     print(f"\n💾 Saved best model ({best_model_dict['name']}) to {filepath}")
+    pipeline_path = save_feature_pipeline_artifact(
+        scaler,
+        feature_names,
+        filename="feature_pipeline.pkl",
+        extra_metadata={"selected_model": best_model_dict["name"]},
+    )
+    print(f"💾 Saved shared feature pipeline to {pipeline_path}")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -253,6 +270,7 @@ if __name__ == "__main__":
     rf_test_metrics = evaluate_model(rf_model, X_test_scaled, y_test, "Random Forest (Test)")
     report_payload = {
         "selection_metric": "precision_then_pr_auc",
+        "selection_threshold": DEFAULT_HAZARD_THRESHOLD,
         "selected_model": best_name,
         "validation": {
             "logistic_regression": {k: v for k, v in lr_val_metrics.items() if k not in {"model", "name"}},

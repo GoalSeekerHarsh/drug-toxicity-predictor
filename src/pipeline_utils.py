@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Iterable
 
@@ -30,9 +31,19 @@ from sklearn.metrics import (
 from sklearn.model_selection import train_test_split
 
 try:
-    from .feature_engineering import compute_descriptors, compute_morgan_fingerprint, smiles_to_mol
+    from .feature_engineering import (
+        compute_descriptors,
+        compute_morgan_fingerprint,
+        smiles_to_mol,
+        stabilize_descriptor_dict,
+    )
 except ImportError:
-    from feature_engineering import compute_descriptors, compute_morgan_fingerprint, smiles_to_mol  # type: ignore
+    from feature_engineering import (  # type: ignore
+        compute_descriptors,
+        compute_morgan_fingerprint,
+        smiles_to_mol,
+        stabilize_descriptor_dict,
+    )
 
 try:
     from rdkit import Chem
@@ -142,8 +153,14 @@ def build_sample_weights(labels: pd.DataFrame, chembl_weight=0.5) -> np.ndarray:
     return np.where(source == "chembl", float(chembl_weight), 1.0).astype(float)
 
 
-def compute_metrics_dict(y_true, y_pred, y_proba) -> dict:
+def classify_probabilities(y_proba, decision_threshold=DEFAULT_HAZARD_THRESHOLD) -> np.ndarray:
+    """Convert toxic-class probabilities into hard labels with an explicit threshold."""
+    return (np.asarray(y_proba, dtype=float) >= float(decision_threshold)).astype(int)
+
+
+def compute_metrics_dict(y_true, y_proba, decision_threshold=DEFAULT_HAZARD_THRESHOLD) -> dict:
     """Compute the standard binary classification metrics payload."""
+    y_pred = classify_probabilities(y_proba, decision_threshold=decision_threshold)
     return {
         "roc_auc": float(roc_auc_score(y_true, y_proba)),
         "pr_auc": float(average_precision_score(y_true, y_proba)),
@@ -151,6 +168,7 @@ def compute_metrics_dict(y_true, y_pred, y_proba) -> dict:
         "recall": float(recall_score(y_true, y_pred, zero_division=0)),
         "f1": float(f1_score(y_true, y_pred, zero_division=0)),
         "confusion_matrix": confusion_matrix(y_true, y_pred).tolist(),
+        "decision_threshold": float(decision_threshold),
     }
 
 
@@ -166,6 +184,28 @@ def save_metrics_report(filename: str, metrics: dict, extra_metadata: dict | Non
         json.dump(payload, handle, indent=2)
 
     return report_path
+
+
+def save_feature_pipeline_artifact(
+    scaler,
+    feature_names,
+    filename: str = "feature_pipeline.pkl",
+    extra_metadata: dict | None = None,
+) -> Path:
+    """Persist the reusable inference preprocessing contract to models/."""
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "scaler": scaler,
+        "feature_names": list(feature_names),
+        "safe_threshold": float(DEFAULT_SAFE_THRESHOLD),
+        "hazard_threshold": float(DEFAULT_HAZARD_THRESHOLD),
+    }
+    if extra_metadata:
+        payload.update(extra_metadata)
+
+    pipeline_path = MODELS_DIR / filename
+    joblib.dump(payload, pipeline_path)
+    return pipeline_path
 
 
 def load_model_artifact(prefer_best=True):
@@ -185,6 +225,8 @@ def load_model_artifact(prefer_best=True):
             artifact["artifact_path"] = str(path)
             artifact["display_name"] = artifact.get("model_name", path.stem.replace("_", " ").title())
             artifact["feature_names"] = list(artifact.get("feature_names", []))
+            artifact.setdefault("safe_threshold", float(DEFAULT_SAFE_THRESHOLD))
+            artifact.setdefault("hazard_threshold", float(DEFAULT_HAZARD_THRESHOLD))
             return artifact
 
     return None
@@ -202,6 +244,31 @@ def load_priority_toxin_dict() -> dict:
         return {}
 
     return payload if isinstance(payload, dict) else {}
+
+
+def normalize_lookup_text(value: str) -> str:
+    """Normalize free-text names for dictionary and metadata lookup."""
+    if not isinstance(value, str):
+        return ""
+    normalized = re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
+    return re.sub(r"\s+", " ", normalized)
+
+
+def _iter_priority_toxin_aliases(entry: dict) -> set[str]:
+    """Yield normalized aliases for one priority toxin metadata record."""
+    aliases = set()
+    for raw_value in (entry.get("name"), entry.get("chembl_id"), entry.get("source")):
+        normalized = normalize_lookup_text(str(raw_value or ""))
+        if normalized:
+            aliases.add(normalized)
+
+    name = str(entry.get("name", "") or "")
+    for match in re.findall(r"\(([^)]+)\)", name):
+        normalized = normalize_lookup_text(match)
+        if normalized:
+            aliases.add(normalized)
+
+    return aliases
 
 
 def canonicalize_smiles_input(smiles_or_mol) -> tuple[object | None, str | None]:
@@ -230,6 +297,25 @@ def lookup_priority_toxin(smiles_or_mol, toxin_dict=None):
     payload = dict(entry)
     payload["canonical_smiles"] = canonical_smiles
     return payload
+
+
+def lookup_priority_toxin_by_name(name: str, toxin_dict=None):
+    """Return a matched toxin entry for an offline name / alias lookup, else None."""
+    toxin_dict = toxin_dict if toxin_dict is not None else load_priority_toxin_dict()
+    normalized_query = normalize_lookup_text(name)
+    if not normalized_query:
+        return None
+
+    for canonical_smiles, entry in toxin_dict.items():
+        if not isinstance(entry, dict):
+            continue
+        aliases = _iter_priority_toxin_aliases(entry)
+        if normalized_query in aliases:
+            payload = dict(entry)
+            payload["canonical_smiles"] = canonical_smiles
+            return payload
+
+    return None
 
 
 def _build_raw_feature_row(descriptors: dict, fingerprint: np.ndarray, feature_names: list[str]) -> dict:
@@ -275,7 +361,7 @@ def build_scaled_feature_vector(smiles_or_mol, artifact) -> dict:
     if mol is None or canonical_smiles is None:
         raise ValueError("Invalid SMILES string.")
 
-    descriptors = compute_descriptors(mol)
+    descriptors = stabilize_descriptor_dict(compute_descriptors(mol))
     fingerprint = compute_morgan_fingerprint(mol, radius=2, n_bits=1024)
     if descriptors is None or fingerprint is None:
         raise ValueError("Failed to compute chemical features.")

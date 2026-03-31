@@ -17,7 +17,7 @@ from sklearn.preprocessing import RobustScaler
 # Connect to src modules
 sys.path.insert(0, os.path.dirname(__file__))
 try:
-    from feature_engineering import smiles_to_mol, compute_descriptors
+    from feature_engineering import smiles_to_mol, compute_descriptors, stabilize_descriptor_dict
 except ImportError:
     print("Error: Must run from project root.")
     sys.exit(1)
@@ -41,7 +41,7 @@ def build_zinc_baseline():
     for smiles in tqdm(df_sample['smiles'].tolist(), desc="Processing ZINC"):
         mol = smiles_to_mol(smiles)
         if mol:
-            desc = compute_descriptors(mol)
+            desc = stabilize_descriptor_dict(compute_descriptors(mol))
             if desc:
                 descriptors_list.append(desc)
                 

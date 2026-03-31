@@ -1,22 +1,24 @@
 # ToxPredict Final Report
 
 ## 1. Dataset Summary
-- Total compounds in processed dataset: **7,855**
-- Source breakdown: **{'tox21': 7823, 'chembl': 32}**
-- Toxicity label breakdown: **{0: 4954, 1: 2901}**
+- Total compounds in processed dataset: **7,853**
+- Source breakdown: **{'tox21': 7823, 'chembl': 30}**
+- Toxicity label breakdown: **{0: 4954, 1: 2899}**
 - Feature space: **217 RDKit descriptors + 1024 Morgan fingerprint bits = 1241 features**
 
 ## 2. Model Comparison
 - Baseline selection rule: **precision_then_pr_auc**
+- Baseline toxic-call threshold: **0.62**
 - Selected baseline: **Random Forest**
-- Logistic Regression test metrics: **{'roc_auc': 0.5, 'pr_auc': 0.36895674300254455, 'precision': 0.0, 'recall': 0.0, 'f1': 0.0, 'confusion_matrix': [[744, 0], [435, 0]]}**
-- Random Forest test metrics: **{'roc_auc': 0.8000108144852305, 'pr_auc': 0.734156349657151, 'precision': 0.7677419354838709, 'recall': 0.5471264367816092, 'f1': 0.6389261744966444, 'confusion_matrix': [[672, 72], [197, 238]]}**
-- Tuned XGBoost metrics: **{'roc_auc': 0.7816076504758374, 'pr_auc': 0.7006619730335109, 'precision': 0.7264957264957265, 'recall': 0.39080459770114945, 'f1': 0.5082212257100149, 'confusion_matrix': [[680, 64], [265, 170]], 'include_chembl': True}**
+- Logistic Regression test metrics: **{'roc_auc': 0.6524280255565353, 'pr_auc': 0.4802141707939166, 'precision': 0.0, 'recall': 0.0, 'f1': 0.0, 'confusion_matrix': [[743, 0], [435, 0]], 'decision_threshold': 0.62}**
+- Random Forest test metrics: **{'roc_auc': 0.793635618260856, 'pr_auc': 0.737476432399779, 'precision': 0.8155339805825242, 'recall': 0.38620689655172413, 'f1': 0.5241809672386896, 'confusion_matrix': [[705, 38], [267, 168]], 'decision_threshold': 0.62}**
+- Tuned XGBoost test metrics: **roc_auc=0.7731, pr_auc=0.7119, precision=0.9487, recall=0.1701, f1=0.2885**
 
 ## 3. ChEMBL Ablation
-- With ChEMBL: **{'roc_auc': 0.7816076504758374, 'pr_auc': 0.7006619730335109, 'precision': 0.7264957264957265, 'recall': 0.39080459770114945, 'f1': 0.5082212257100149, 'confusion_matrix': [[680, 64], [265, 170]], 'include_chembl': True, 'chembl_weight': 0.5}**
-- Without ChEMBL: **{'roc_auc': 0.7191185792844585, 'pr_auc': 0.5968975225669053, 'precision': 0.71, 'recall': 0.16473317865429235, 'f1': 0.2674199623352166, 'confusion_matrix': [[714, 29], [360, 71]], 'include_chembl': False, 'chembl_weight': 0.5}**
-- Interpretation: ChEMBL remains an auxiliary signal, and the weighted version should outperform the Tox21-only run on precision/PR-AUC before it is promoted.
+- With ChEMBL: **roc_auc=0.7731, pr_auc=0.7119, precision=0.9487, recall=0.1701, f1=0.2885**
+- Without ChEMBL: **roc_auc=0.7804, pr_auc=0.6979, precision=0.9057, recall=0.1114, f1=0.1983**
+- Promotion rule outcome: **with ChEMBL** currently wins by precision, with PR-AUC used as the tie-breaker.
+- Interpretation: ChEMBL remains an auxiliary signal. It should stay down-weighted and only be promoted when it genuinely improves held-out precision.
 
 ## 4. Production Artifact
 - Preferred production artifact: **/Users/harshgupta/Documents/GoalSeeker/Quant/toxicity-project/models/best_model.pkl**
@@ -25,16 +27,16 @@
 
 ## 5. Explainability
 - Top SHAP features currently saved in `reports/top_features.csv`:
-  - Rank 1: **MolLogP** (0.19356017)
-  - Rank 2: **BertzCT** (0.13829164)
-  - Rank 3: **SlogP_VSA2** (0.06806316)
-  - Rank 4: **FractionCSP3** (0.05817404)
-  - Rank 5: **HeavyAtomMolWt** (0.0567047)
-  - Rank 6: **SMR_VSA10** (0.046551805)
-  - Rank 7: **BCUT2D_LOGPHI** (0.031443633)
-  - Rank 8: **VSA_EState3** (0.025616497)
-  - Rank 9: **SMR_VSA3** (0.021791995)
-  - Rank 10: **fr_phenol_noOrthoHbond** (0.019901654)
+  - Rank 1: **MolLogP** (0.16920298)
+  - Rank 2: **BertzCT** (0.13488045)
+  - Rank 3: **BCUT2D_LOGPHI** (0.08520752)
+  - Rank 4: **HeavyAtomMolWt** (0.067650996)
+  - Rank 5: **FractionCSP3** (0.06317009)
+  - Rank 6: **SlogP_VSA2** (0.056536667)
+  - Rank 7: **SlogP_VSA6** (0.03789076)
+  - Rank 8: **SMR_VSA6** (0.031319994)
+  - Rank 9: **SMR_VSA10** (0.029982258)
+  - Rank 10: **fr_phenol_noOrthoHbond** (0.028632939)
 
 ## 6. Runtime Notes
 - The Streamlit app now prefers `models/best_model.pkl` and falls back only when needed.

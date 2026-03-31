@@ -61,6 +61,8 @@ def screen_zinc(artifact, screen_size=SCREEN_SIZE):
 
     results = []
     skipped = 0
+    safe_threshold = float(artifact.get("safe_threshold", DEFAULT_SAFE_THRESHOLD))
+    hazard_threshold = float(artifact.get("hazard_threshold", DEFAULT_HAZARD_THRESHOLD))
 
     print(f"  Screening {len(df):,} molecules...")
     for i, row in df.iterrows():
@@ -70,8 +72,8 @@ def screen_zinc(artifact, screen_size=SCREEN_SIZE):
             inference = predict_with_model(
                 smiles,
                 artifact,
-                safe_threshold=DEFAULT_SAFE_THRESHOLD,
-                hazard_threshold=DEFAULT_HAZARD_THRESHOLD,
+                safe_threshold=safe_threshold,
+                hazard_threshold=hazard_threshold,
             )
             prob = float(inference["probability"][1])
             verdict = inference["verdict"]

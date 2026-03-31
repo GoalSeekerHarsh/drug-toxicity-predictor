@@ -30,6 +30,14 @@ def _load_json(path: Path):
         return json.load(handle)
 
 
+def _format_metric_block(metrics: dict | None) -> str:
+    if not metrics:
+        return "N/A"
+    keys = ["roc_auc", "pr_auc", "precision", "recall", "f1"]
+    parts = [f"{key}={metrics.get(key):.4f}" for key in keys if isinstance(metrics.get(key), (int, float))]
+    return ", ".join(parts) if parts else str(metrics)
+
+
 def build_report() -> str:
     labels = pd.read_csv(PROCESSED_DATA_DIR / "labels.csv")
     source_counts = labels["source"].value_counts().to_dict() if "source" in labels.columns else {}
@@ -59,6 +67,7 @@ def build_report() -> str:
         lines.extend(
             [
                 f"- Baseline selection rule: **{baseline.get('selection_metric', 'N/A')}**",
+                f"- Baseline toxic-call threshold: **{baseline.get('selection_threshold', 'N/A')}**",
                 f"- Selected baseline: **{baseline.get('selected_model', 'N/A')}**",
                 f"- Logistic Regression test metrics: **{baseline.get('test', {}).get('logistic_regression', {})}**",
                 f"- Random Forest test metrics: **{baseline.get('test', {}).get('random_forest', {})}**",
@@ -68,17 +77,25 @@ def build_report() -> str:
         lines.append("- Baseline comparison report not available yet. Run `python -m src.baseline_models`.")
 
     if tuned:
-        lines.append(f"- Tuned XGBoost metrics: **{tuned}**")
+        lines.append(f"- Tuned XGBoost test metrics: **{_format_metric_block(tuned)}**")
     else:
         lines.append("- Tuned XGBoost metrics report not available yet. Run `python -m src.improve_model`.")
 
     lines.extend(["", "## 3. ChEMBL Ablation"])
     if with_chembl and without_chembl:
+        better_tag = "with ChEMBL" if (
+            with_chembl.get("precision", 0.0),
+            with_chembl.get("pr_auc", 0.0),
+        ) >= (
+            without_chembl.get("precision", 0.0),
+            without_chembl.get("pr_auc", 0.0),
+        ) else "without ChEMBL"
         lines.extend(
             [
-                f"- With ChEMBL: **{with_chembl}**",
-                f"- Without ChEMBL: **{without_chembl}**",
-                "- Interpretation: ChEMBL remains an auxiliary signal, and the weighted version should outperform the Tox21-only run on precision/PR-AUC before it is promoted.",
+                f"- With ChEMBL: **{_format_metric_block(with_chembl)}**",
+                f"- Without ChEMBL: **{_format_metric_block(without_chembl)}**",
+                f"- Promotion rule outcome: **{better_tag}** currently wins by precision, with PR-AUC used as the tie-breaker.",
+                "- Interpretation: ChEMBL remains an auxiliary signal. It should stay down-weighted and only be promoted when it genuinely improves held-out precision.",
             ]
         )
     else:

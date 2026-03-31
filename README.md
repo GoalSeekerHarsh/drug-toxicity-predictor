@@ -15,9 +15,9 @@ This project uses two complementary sources:
 - **ChEMBL withdrawn drugs (auxiliary labels):** a conservative set of withdrawn compounds added as extra toxic examples. These rows are kept **down-weighted** during training because they are useful but noisier than Tox21.
 
 Current processed dataset snapshot:
-- **7,855 compounds total**
+- **7,853 compounds total**
 - **7,823 Tox21 rows**
-- **32 ChEMBL auxiliary rows**
+- **30 ChEMBL auxiliary rows**
 
 ## 3. The Pipeline
 1. **Data Cleaning (`src/data_loader.py`)**: Validates raw SMILES strings using RDKit, removes unparseable molecules, canonicalizes structures, deduplicates them chemically, aggregates all Tox21 assays into one binary label, and merges the auxiliary ChEMBL supplement.
@@ -73,11 +73,13 @@ streamlit run app/streamlit_app.py
 ## 6. Model Results
 Current ChEMBL ablation results on the held-out test split:
 
-- **With ChEMBL:** ROC-AUC `0.7816`, PR-AUC `0.7007`, Precision `0.7265`
-- **Without ChEMBL:** ROC-AUC `0.7191`, PR-AUC `0.5969`, Precision `0.7100`
+- **With ChEMBL:** ROC-AUC `0.7731`, PR-AUC `0.7119`, Precision `0.9487`
+- **Without ChEMBL:** ROC-AUC `0.7804`, PR-AUC `0.6979`, Precision `0.9057`
 
 Interpretation:
-- The weighted ChEMBL supplement improves ranking quality without replacing Tox21 as the main source of truth.
+- The ChEMBL supplement remains an auxiliary signal and stays down-weighted.
+- Promotion now uses the same hazard threshold as the production app, so the reported precision matches live `CRITICAL HAZARD` behavior.
+- On the current rebuilt dataset snapshot, the weighted ChEMBL run is the promoted production model because it delivers the highest held-out hazard precision.
 - Precision remains the primary promotion metric, with PR-AUC as the tie-breaker.
 - The production app now prefers `models/best_model.pkl`, which is updated by the ablation workflow.
 - The runtime verdict is intentionally tri-state so uncertain molecules do not get forced into a fake binary answer.
@@ -91,5 +93,5 @@ Using SHAP analysis, we identified the top structural drivers indicating toxicit
 ## 8. Future Work
 If given more time past this hackathon, we would explore:
 - **Graph Neural Networks (GNNs):** Implementing Chemprop or DGL to learn directly from the molecular graph structure rather than relying entirely on pre-computed RDKit descriptors.
-- **Multi-task Learning:** Predicting all 12 Tox21 toxicity endpoints simultaneously instead of just `NR-AR` to leverage shared chemical knowledge.
+- **Multi-task Learning:** Predicting the 12 Tox21 endpoints as separate but related tasks instead of using the current aggregated "any-assay-positive" label.
 - **Cloud Deployment:** Containerizing the Streamlit application using Docker and deploying it to AWS Fargate or Google Cloud Run for public access.

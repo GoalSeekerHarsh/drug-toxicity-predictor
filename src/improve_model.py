@@ -27,29 +27,35 @@ import xgboost as xgb
 from sklearn.model_selection import train_test_split, GridSearchCV, StratifiedKFold
 from sklearn.metrics import (
     roc_auc_score,
-    f1_score,
     recall_score,
     precision_score,
-    confusion_matrix
 )
 
 try:
     from .pipeline_utils import (
+        DEFAULT_HAZARD_THRESHOLD,
+        DEFAULT_SAFE_THRESHOLD,
         build_sample_weights,
+        classify_probabilities,
         compute_metrics_dict,
         get_feature_partitions,
         resolve_label_column,
         save_metrics_report,
+        save_feature_pipeline_artifact,
         stratified_train_val_test_split,
         transform_feature_frame,
     )
 except ImportError:
     from pipeline_utils import (  # type: ignore
+        DEFAULT_HAZARD_THRESHOLD,
+        DEFAULT_SAFE_THRESHOLD,
         build_sample_weights,
+        classify_probabilities,
         compute_metrics_dict,
         get_feature_partitions,
         resolve_label_column,
         save_metrics_report,
+        save_feature_pipeline_artifact,
         stratified_train_val_test_split,
         transform_feature_frame,
     )
@@ -151,7 +157,6 @@ def tune_xgboost(X_train, y_train, sample_weight=None, random_state=42):
     xgb_base = xgb.XGBClassifier(
         random_state=random_state,
         eval_metric="logloss",
-        use_label_encoder=False,
         scale_pos_weight=sp_weight, # Fix the imbalance weight for all tests
         n_estimators=100,           # Fixed number of trees to speed up tuning
         n_jobs=1                    # Safe in restricted environments
@@ -208,13 +213,13 @@ def evaluate_and_save(
     report_name="tuned_xgboost_metrics.json",
     extra_metadata=None,
     update_best_model=True,
+    decision_threshold=DEFAULT_HAZARD_THRESHOLD,
 ):
     """Evaluate model on test set, save model artifact + metrics report."""
     
-    y_pred = model.predict(X_test)
     y_proba = model.predict_proba(X_test)[:, 1]
 
-    metrics = compute_metrics_dict(y_test, y_pred, y_proba)
+    metrics = compute_metrics_dict(y_test, y_proba, decision_threshold=decision_threshold)
     roc_auc = metrics["roc_auc"]
     pr_auc = metrics["pr_auc"]
     f1 = metrics["f1"]
@@ -230,6 +235,7 @@ def evaluate_and_save(
     print(f" Precision: {precision:.4f}  <-- THE MOST IMPORTANT METRIC NOW")
     print(f" Recall:    {recall:.4f}")
     print(f" F1 Score:  {f1:.4f}")
+    print(f" Decision Threshold: {metrics['decision_threshold']:.2f}")
     print("\n Confusion Matrix:")
     print("                    Predicted")
     print("                  Non-toxic  Toxic")
@@ -244,10 +250,19 @@ def evaluate_and_save(
         "model": model,
         "scaler": scaler,
         "feature_names": feature_names,
-        "model_name": "Tuned XGBoost"
+        "model_name": "Tuned XGBoost",
+        "safe_threshold": float(DEFAULT_SAFE_THRESHOLD),
+        "hazard_threshold": float(decision_threshold),
     }
     joblib.dump(artifact, filepath)
     print(f"\n💾 Saved tuned model to {filepath}")
+    pipeline_path = save_feature_pipeline_artifact(
+        scaler,
+        feature_names,
+        filename="feature_pipeline.pkl",
+        extra_metadata=extra_metadata,
+    )
+    print(f"💾 Saved shared feature pipeline to {pipeline_path}")
 
     # Also write a canonical "best_model.pkl" pointer artifact for downstream scripts
     if update_best_model:
@@ -274,12 +289,15 @@ if __name__ == "__main__":
     
     # Quick sanity check on validation before final test
     try:
-        y_val_pred = best_xgb_model.predict(X_val_scaled)
         y_val_proba = best_xgb_model.predict_proba(X_val_scaled)[:, 1]
+        y_val_pred = classify_probabilities(y_val_proba, decision_threshold=DEFAULT_HAZARD_THRESHOLD)
         val_precision = precision_score(y_val, y_val_pred)
         val_recall = recall_score(y_val, y_val_pred)
         val_roc = roc_auc_score(y_val, y_val_proba)
-        print(f"\nValidation: ROC-AUC={val_roc:.4f} | Precision={val_precision:.4f} | Recall={val_recall:.4f}")
+        print(
+            f"\nValidation @ threshold {DEFAULT_HAZARD_THRESHOLD:.2f}: "
+            f"ROC-AUC={val_roc:.4f} | Precision={val_precision:.4f} | Recall={val_recall:.4f}"
+        )
     except Exception:
         pass
 
@@ -293,6 +311,7 @@ if __name__ == "__main__":
         artifact_name="tuned_xgboost_model.pkl",
         report_name="tuned_xgboost_metrics.json",
         extra_metadata={"include_chembl": True},
+        decision_threshold=DEFAULT_HAZARD_THRESHOLD,
     )
     
     print("\nPipeline finished successfully. 🎉")

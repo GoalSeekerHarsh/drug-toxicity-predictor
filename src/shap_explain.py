@@ -17,14 +17,23 @@ Note on parameters:
 """
 
 import os
+import tempfile
 import pandas as pd
 import numpy as np
+
+MPL_DIR = os.path.join(tempfile.gettempdir(), "toxpredict-mpl")
+CACHE_DIR = os.path.join(tempfile.gettempdir(), "toxpredict-cache")
+os.makedirs(MPL_DIR, exist_ok=True)
+os.makedirs(CACHE_DIR, exist_ok=True)
+os.environ.setdefault("MPLCONFIGDIR", MPL_DIR)
+os.environ.setdefault("XDG_CACHE_HOME", CACHE_DIR)
+
 import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import shap
 
 # Set backend to avoid GUI issues when running scripts
-matplotlib.use('Agg')
 
 # ── Configuration ──────────────────────────────────────────────
 PROCESSED_DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "processed")
