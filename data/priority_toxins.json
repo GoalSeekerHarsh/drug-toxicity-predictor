@@ -1,0 +1,680 @@
+{
+  "Cc1c(C)c2c(c(C)c1O)CCC(C)(COc1ccc(CC3SC(=O)NC3=O)cc1)O2": {
+    "name": "Troglitazone",
+    "hazard_class": "Withdrawn Drug (ALIMENTARY TRACT AND METABOLISM: DRUGS USED IN DIABETES: BLO)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL408"
+  },
+  "N[C@@H]1[C@H]2CN(c3nc4c(cc3F)c(=O)c(C(=O)O)cn4-c3ccc(F)cc3F)C[C@@H]12": {
+    "name": "Trovafloxacin",
+    "hazard_class": "Withdrawn Drug (ANTIINFECTIVES FOR SYSTEMIC USE: ANTIBACTERIALS FOR SYSTEMIC)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL428"
+  },
+  "COc1c(N2CCNC(C)C2)c(F)cc2c(=O)c(C(=O)O)cn(C3CC3)c12": {
+    "name": "Gatifloxacin",
+    "hazard_class": "Withdrawn Drug (ANTIINFECTIVES FOR SYSTEMIC USE: ANTIBACTERIALS FOR SYSTEMIC)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL31"
+  },
+  "COc1ccc2c(C(=S)N(C)CC(=O)O)cccc2c1C(F)(F)F": {
+    "name": "Tolrestat",
+    "hazard_class": "Withdrawn Drug (ALIMENTARY TRACT AND METABOLISM: DRUGS USED IN DIABETES: OTH)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL436"
+  },
+  "Nc1ccc(S(=O)(=O)Nc2nccs2)cc1": {
+    "name": "Sulfathiazole",
+    "hazard_class": "Withdrawn Drug (DERMATOLOGICALS: ANTIBIOTICS AND CHEMOTHERAPEUTICS FOR DERMA)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL437"
+  },
+  "Cc1ccnc(NS(=O)(=O)c2ccc(N)cc2)n1": {
+    "name": "Sulfamerazine",
+    "hazard_class": "Withdrawn Drug (ANTIINFECTIVES FOR SYSTEMIC USE: ANTIBACTERIALS FOR SYSTEMIC)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL438"
+  },
+  "CN1C[C@H](C(=O)N[C@]2(C)O[C@@]3(O)[C@@H]4CCCN4C(=O)[C@H](Cc4ccccc4)N3C2=O)C=C2c3cccc4[nH]cc(c34)C[C@H]21": {
+    "name": "Ergotamine",
+    "hazard_class": "Withdrawn Drug (NERVOUS SYSTEM: ANALGESICS: ANTIMIGRAINE PREPARATIONS: Ergot)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL442"
+  },
+  "CCC1(c2ccccc2)C(=O)NC(=O)NC1=O": {
+    "name": "Phenobarbital",
+    "hazard_class": "Withdrawn Drug (NERVOUS SYSTEM: ANTIEPILEPTICS: ANTIEPILEPTICS: Barbiturates)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL40"
+  },
+  "Cc1cc(C)nc(NS(=O)(=O)c2ccc(N)cc2)n1": {
+    "name": "Sulfadimidine",
+    "hazard_class": "Withdrawn Drug (ANTIINFECTIVES FOR SYSTEMIC USE: ANTIBACTERIALS FOR SYSTEMIC)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL446"
+  },
+  "C=CCC1(C(C)CCC)C(=O)NC(=O)NC1=O": {
+    "name": "Secobarbital",
+    "hazard_class": "Withdrawn Drug (NERVOUS SYSTEM: PSYCHOLEPTICS: HYPNOTICS AND SEDATIVES: Barb)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL447"
+  },
+  "CCCC(C)C1(CC)C(=O)NC(=O)NC1=O": {
+    "name": "Pentobarbital",
+    "hazard_class": "Withdrawn Drug (NERVOUS SYSTEM: PSYCHOLEPTICS: HYPNOTICS AND SEDATIVES: Barb)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL448"
+  },
+  "O=C(O)COc1ccc(C(=O)c2cccs2)c(Cl)c1Cl": {
+    "name": "Ticrynafen",
+    "hazard_class": "Withdrawn Drug (CARDIOVASCULAR SYSTEM: DIURETICS: HIGH-CEILING DIURETICS: Ar)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL267744"
+  },
+  "CCOC(=O)/C=C(C)/C=C/C=C(C)/C=C/c1c(C)cc(OC)c(C)c1C": {
+    "name": "Etretinate",
+    "hazard_class": "Withdrawn Drug (DERMATOLOGICALS: ANTIPSORIATICS: ANTIPSORIATICS FOR SYSTEMIC)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL464"
+  },
+  "O=C1CCC(N2C(=O)c3ccccc3C2=O)C(=O)N1": {
+    "name": "Thalidomide",
+    "hazard_class": "Withdrawn Drug (ANTINEOPLASTIC AND IMMUNOMODULATING AGENTS: IMMUNOSUPPRESSAN)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL468"
+  },
+  "O=C(c1ccccc1)c1ccc2n1CCC2C(=O)O": {
+    "name": "Ketorolac",
+    "hazard_class": "Withdrawn Drug (MUSCULO-SKELETAL SYSTEM: ANTIINFLAMMATORY AND ANTIRHEUMATIC )",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL469"
+  },
+  "CSc1ccc2c(c1)N(CCC1CCCCN1C)c1ccccc1S2": {
+    "name": "Thioridazine",
+    "hazard_class": "Withdrawn Drug (NERVOUS SYSTEM: PSYCHOLEPTICS: ANTIPSYCHOTICS: Phenothiazine)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL479"
+  },
+  "COc1ccc2c3c1O[C@H]1[C@@H](O)C=C[C@H]4[C@@H](C2)N(C)CC[C@@]341": {
+    "name": "Codeine",
+    "hazard_class": "Withdrawn Drug (RESPIRATORY SYSTEM: COUGH AND COLD PREPARATIONS: COUGH SUPPR)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL485"
+  },
+  "Oc1c(Cl)cc(Cl)c(Cl)c1Cc1c(O)c(Cl)cc(Cl)c1Cl": {
+    "name": "Hexachlorophene",
+    "hazard_class": "Withdrawn Drug (DERMATOLOGICALS: ANTISEPTICS AND DISINFECTANTS: ANTISEPTICS )",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL496"
+  },
+  "Oc1c(I)cc(Cl)c2cccnc12": {
+    "name": "Clioquinol",
+    "hazard_class": "Withdrawn Drug (ANTIPARASITIC PRODUCTS, INSECTICIDES AND REPELLENTS: ANTIPRO)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL497"
+  },
+  "O=C1NCCN1CCN1CCC(c2cn(-c3ccc(F)cc3)c3ccc(Cl)cc23)CC1": {
+    "name": "Sertindole",
+    "hazard_class": "Withdrawn Drug (NERVOUS SYSTEM: PSYCHOLEPTICS: ANTIPSYCHOTICS: Indole deriva)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL12713"
+  },
+  "CCCCC1C(=O)N(c2ccccc2)N(c2ccccc2)C1=O": {
+    "name": "Phenylbutazone",
+    "hazard_class": "Withdrawn Drug (MUSCULO-SKELETAL SYSTEM: ANTIINFLAMMATORY AND ANTIRHEUMATIC )",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL101"
+  },
+  "CCCN1C[C@H](CSC)C[C@@H]2c3cccc4[nH]cc(c34)C[C@H]21": {
+    "name": "Pergolide",
+    "hazard_class": "Withdrawn Drug (NERVOUS SYSTEM: ANTI-PARKINSON DRUGS: DOPAMINERGIC AGENTS: D)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL531"
+  },
+  "CC1CN(c2cc3c(cc2F)c(=O)c(C(=O)O)cn3-c2ccc(F)cc2F)CCN1": {
+    "name": "Temafloxacin",
+    "hazard_class": "Withdrawn Drug (ANTIINFECTIVES FOR SYSTEMIC USE: ANTIBACTERIALS FOR SYSTEMIC)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL277100"
+  },
+  "Cc1c(C(=O)NN2CCCCC2)nn(-c2ccc(Cl)cc2Cl)c1-c1ccc(Cl)cc1": {
+    "name": "Rimonabant",
+    "hazard_class": "Withdrawn Drug (ALIMENTARY TRACT AND METABOLISM: ANTIOBESITY PREPARATIONS, E)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL111"
+  },
+  "CN1Cc2c(N)cccc2C(c2ccccc2)C1": {
+    "name": "Nomifensine",
+    "hazard_class": "Withdrawn Drug (NERVOUS SYSTEM: PSYCHOANALEPTICS: ANTIDEPRESSANTS: Other ant)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL273575"
+  },
+  "CCOC(=O)C(C)(C)Oc1ccc(Cl)cc1": {
+    "name": "Clofibrate",
+    "hazard_class": "Withdrawn Drug (CARDIOVASCULAR SYSTEM: LIPID MODIFYING AGENTS: LIPID MODIFYI)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL565"
+  },
+  "O=C(O)Cc1ccccc1Oc1ccc(Cl)cc1Cl": {
+    "name": "Fenclofenac",
+    "hazard_class": "Withdrawn Drug",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL15677"
+  },
+  "CC(C(=O)O)c1ccc(N2Cc3ccccc3C2=O)cc1": {
+    "name": "Indoprofen",
+    "hazard_class": "Withdrawn Drug (MUSCULO-SKELETAL SYSTEM: ANTIINFLAMMATORY AND ANTIRHEUMATIC )",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL15870"
+  },
+  "Cl[C@H]1[C@H](Cl)[C@@H](Cl)[C@@H](Cl)[C@H](Cl)[C@H]1Cl": {
+    "name": "Lindane",
+    "hazard_class": "Withdrawn Drug (ANTIPARASITIC PRODUCTS, INSECTICIDES AND REPELLENTS: ECTOPAR)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL15891"
+  },
+  "Cc1c(F)c(N2CCNC(C)C2)cc2c1c(=O)c(C(=O)O)cn2C1CC1": {
+    "name": "Grepafloxacin",
+    "hazard_class": "Withdrawn Drug (ANTIINFECTIVES FOR SYSTEMIC USE: ANTIBACTERIALS FOR SYSTEMIC)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL583"
+  },
+  "CC(C)(C)c1ccc(C(O)CCCN2CCC(C(O)(c3ccccc3)c3ccccc3)CC2)cc1": {
+    "name": "Terfenadine",
+    "hazard_class": "Withdrawn Drug (RESPIRATORY SYSTEM: ANTIHISTAMINES FOR SYSTEMIC USE: ANTIHIS)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL17157"
+  },
+  "CN(CCOc1ccc(CC2SC(=O)NC2=O)cc1)c1ccccn1": {
+    "name": "Rosiglitazone",
+    "hazard_class": "Withdrawn Drug (ALIMENTARY TRACT AND METABOLISM: DRUGS USED IN DIABETES: BLO)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL121"
+  },
+  "CS(=O)(=O)c1ccc(C2=C(c3ccccc3)C(=O)OC2)cc1": {
+    "name": "Rofecoxib",
+    "hazard_class": "Withdrawn Drug (MUSCULO-SKELETAL SYSTEM: ANTIINFLAMMATORY AND ANTIRHEUMATIC )",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL122"
+  },
+  "CC(C)(Sc1cc(C(C)(C)C)c(O)c(C(C)(C)C)c1)Sc1cc(C(C)(C)C)c(O)c(C(C)(C)C)c1": {
+    "name": "Probucol",
+    "hazard_class": "Withdrawn Drug (CARDIOVASCULAR SYSTEM: LIPID MODIFYING AGENTS: LIPID MODIFYI)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL608"
+  },
+  "Cc1cc(CC(=O)O)n(C)c1C(=O)c1ccc(Cl)cc1": {
+    "name": "Zomepirac",
+    "hazard_class": "Withdrawn Drug (MUSCULO-SKELETAL SYSTEM: ANTIINFLAMMATORY AND ANTIRHEUMATIC )",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL19490"
+  },
+  "Cc1cc2c(cc1CC(=O)c1sccc1S(=O)(=O)Nc1onc(C)c1Cl)OCO2": {
+    "name": "Sitaxentan",
+    "hazard_class": "Withdrawn Drug (CARDIOVASCULAR SYSTEM: ANTIHYPERTENSIVES: OTHER ANTIHYPERTEN)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL282724"
+  },
+  "CCc1nn(CCCN2CCN(c3cccc(Cl)c3)CC2)c(=O)n1CCOc1ccccc1": {
+    "name": "Nefazodone",
+    "hazard_class": "Withdrawn Drug (NERVOUS SYSTEM: PSYCHOANALEPTICS: ANTIDEPRESSANTS: Other ant)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL623"
+  },
+  "O=C(N[C@H](CO)[C@H](O)c1ccc([N+](=O)[O-])cc1)C(Cl)Cl": {
+    "name": "Chloramphenicol",
+    "hazard_class": "Withdrawn Drug (DERMATOLOGICALS: ANTIBIOTICS AND CHEMOTHERAPEUTICS FOR DERMA)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL130"
+  },
+  "Cc1nnc2n1-c1ccc(Cl)cc1C(c1ccccc1Cl)=NC2": {
+    "name": "Triazolam",
+    "hazard_class": "Withdrawn Drug (NERVOUS SYSTEM: PSYCHOLEPTICS: HYPNOTICS AND SEDATIVES: Benz)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL646"
+  },
+  "CCN1CCC[C@H]1CNC(=O)c1c(OC)ccc(Br)c1OC": {
+    "name": "Remoxipride",
+    "hazard_class": "Withdrawn Drug (NERVOUS SYSTEM: PSYCHOLEPTICS: ANTIPSYCHOTICS: Benzamides)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL22242"
+  },
+  "COc1ccc2c3c1O[C@H]1C(=O)CC[C@@]4(O)[C@@H](C2)N(C)CC[C@]314": {
+    "name": "Oxycodone",
+    "hazard_class": "Withdrawn Drug (NERVOUS SYSTEM: ANALGESICS: OPIOIDS: Natural opium alkaloids)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL656"
+  },
+  "C[C@H](CCc1ccccc1)NC[C@H](O)c1ccc(O)c(C(N)=O)c1": {
+    "name": "Dilevalol",
+    "hazard_class": "Withdrawn Drug",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL27193"
+  },
+  "COC(=O)CCc1ccc(OCC(O)CNC(C)C)cc1": {
+    "name": "Esmolol",
+    "hazard_class": "Withdrawn Drug (CARDIOVASCULAR SYSTEM: BETA BLOCKING AGENTS: BETA BLOCKING A)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL768"
+  },
+  "COC(=O)[C@H]1[C@H]2C[C@@H]3c4[nH]c5cc(OC)ccc5c4CCN3C[C@H]2C[C@@H](OC(=O)c2cc(OC)c(OC)c(OC)c2)[C@@H]1OC": {
+    "name": "Reserpine",
+    "hazard_class": "Withdrawn Drug (CARDIOVASCULAR SYSTEM: ANTIHYPERTENSIVES: ANTIADRENERGIC AGE)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL772"
+  },
+  "CC(C)NCC(O)c1cc(O)cc(O)c1": {
+    "name": "Orciprenaline",
+    "hazard_class": "Withdrawn Drug (RESPIRATORY SYSTEM: DRUGS FOR OBSTRUCTIVE AIRWAY DISEASES: A)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL776"
+  },
+  "CO[C@@H]1[C@@H](OC(N)=O)[C@@H](O)[C@H](Oc2ccc3c(O)c(NC(=O)c4ccc(O)c(CC=C(C)C)c4)c(=O)oc3c2C)OC1(C)C": {
+    "name": "Novobiocin",
+    "hazard_class": "Withdrawn Drug",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL36506"
+  },
+  "N=C(NCCCCCCNC(=N)NC(=N)Nc1ccc(Cl)cc1)NC(=N)Nc1ccc(Cl)cc1": {
+    "name": "Chlorhexidine",
+    "hazard_class": "Withdrawn Drug (DERMATOLOGICALS: ANTISEPTICS AND DISINFECTANTS: ANTISEPTICS )",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL790"
+  },
+  "COc1ccc(CCN2CCC(Nc3nc4ccccc4n3Cc3ccc(F)cc3)CC2)cc1": {
+    "name": "Astemizole",
+    "hazard_class": "Withdrawn Drug (RESPIRATORY SYSTEM: ANTIHISTAMINES FOR SYSTEMIC USE: ANTIHIS)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL296419"
+  },
+  "CN(C)CCOC(c1ccc(Cl)cc1)c1ccccn1": {
+    "name": "Carbinoxamine",
+    "hazard_class": "Withdrawn Drug (RESPIRATORY SYSTEM: ANTIHISTAMINES FOR SYSTEMIC USE: ANTIHIS)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL864"
+  },
+  "Cc1onc(-c2ccccc2)c1-c1ccc(S(N)(=O)=O)cc1": {
+    "name": "Valdecoxib",
+    "hazard_class": "Withdrawn Drug (MUSCULO-SKELETAL SYSTEM: ANTIINFLAMMATORY AND ANTIRHEUMATIC )",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL865"
+  },
+  "NC(=O)N/N=C/c1ccc([N+](=O)[O-])o1": {
+    "name": "Nitrofural",
+    "hazard_class": "Withdrawn Drug (SENSORY ORGANS: OTOLOGICALS: ANTIINFECTIVES: Antiinfective)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL869"
+  },
+  "COCC(=O)O[C@]1(CCN(C)CCCc2nc3ccccc3[nH]2)CCc2cc(F)ccc2[C@@H]1C(C)C": {
+    "name": "Mibefradil",
+    "hazard_class": "Withdrawn Drug (CARDIOVASCULAR SYSTEM: CALCIUM CHANNEL BLOCKERS: SELECTIVE C)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL45816"
+  },
+  "CC(C(=O)O)c1ccc(C(=O)c2cccs2)cc1": {
+    "name": "Suprofen",
+    "hazard_class": "Withdrawn Drug (MUSCULO-SKELETAL SYSTEM: ANTIINFLAMMATORY AND ANTIRHEUMATIC )",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL956"
+  },
+  "CC(N)C(O)c1ccccc1": {
+    "name": "Phenylpropanolamine",
+    "hazard_class": "Withdrawn Drug (RESPIRATORY SYSTEM: NASAL PREPARATIONS: NASAL DECONGESTANTS )",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL61006"
+  },
+  "CCCC(C)(COC(N)=O)COC(N)=O": {
+    "name": "Meprobamate",
+    "hazard_class": "Withdrawn Drug (NERVOUS SYSTEM: PSYCHOLEPTICS: HYPNOTICS AND SEDATIVES: Hypn)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL979"
+  },
+  "C/C=C(C(=C/C)/c1ccc(O)cc1)\\c1ccc(O)cc1": {
+    "name": "Dienestrol",
+    "hazard_class": "Withdrawn Drug (GENITO URINARY SYSTEM AND SEX HORMONES: SEX HORMONES AND MOD)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL1018"
+  },
+  "C1CCC(C(CC2CCCCN2)C2CCCCC2)CC1": {
+    "name": "Perhexiline",
+    "hazard_class": "Withdrawn Drug (CARDIOVASCULAR SYSTEM: CALCIUM CHANNEL BLOCKERS: NON-SELECTI)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL75880"
+  },
+  "CCCCCNC(=N)N/N=C/c1c[nH]c2ccc(OC)cc12": {
+    "name": "Tegaserod",
+    "hazard_class": "Withdrawn Drug (ALIMENTARY TRACT AND METABOLISM: DRUGS FOR CONSTIPATION: DRU)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL76370"
+  },
+  "Oc1cc(O)c2c(c1)O[C@H](c1ccc(O)c(O)c1)[C@@H](O)C2": {
+    "name": "Cianidanol",
+    "hazard_class": "Withdrawn Drug",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL311498"
+  },
+  "COc1ccc(C(=O)Nc2ccccc2CCC2CCCCN2C)cc1": {
+    "name": "Encainide",
+    "hazard_class": "Withdrawn Drug (CARDIOVASCULAR SYSTEM: CARDIAC THERAPY: ANTIARRHYTHMICS, CLA)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL315838"
+  },
+  "CCNC(C)Cc1cccc(C(F)(F)F)c1": {
+    "name": "Fenfluramine",
+    "hazard_class": "Withdrawn Drug (ALIMENTARY TRACT AND METABOLISM: ANTIOBESITY PREPARATIONS, E)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL87493"
+  },
+  "Nc1c(CC(=O)O)cccc1C(=O)c1ccc(Br)cc1": {
+    "name": "Bromfenac",
+    "hazard_class": "Withdrawn Drug (SENSORY ORGANS: OPHTHALMOLOGICALS: ANTIINFLAMMATORY AGENTS: )",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL1077"
+  },
+  "O=C(CCCN1CC=C(n2c(=O)[nH]c3ccccc32)CC1)c1ccc(F)cc1": {
+    "name": "Droperidol",
+    "hazard_class": "Withdrawn Drug (NERVOUS SYSTEM: PSYCHOLEPTICS: ANTIPSYCHOTICS: Butyrophenone)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL1108"
+  },
+  "CCN(CC)CCOC(=O)C1(C2CCCCC2)CCCCC1": {
+    "name": "Dicycloverine",
+    "hazard_class": "Withdrawn Drug (ALIMENTARY TRACT AND METABOLISM: DRUGS FOR FUNCTIONAL GASTRO)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL1123"
+  },
+  "NC1=NC(=O)C(c2ccccc2)O1": {
+    "name": "Pemoline",
+    "hazard_class": "Withdrawn Drug (NERVOUS SYSTEM: PSYCHOANALEPTICS: PSYCHOSTIMULANTS, AGENTS U)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL1177"
+  },
+  "Cc1nnc(NS(=O)(=O)c2ccc(N)cc2)s1": {
+    "name": "Sulfamethizole",
+    "hazard_class": "Withdrawn Drug (ANTIINFECTIVES FOR SYSTEMIC USE: ANTIBACTERIALS FOR SYSTEMIC)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL1191"
+  },
+  "CC(C(=O)O)c1ccc2oc(-c3ccc(Cl)cc3)nc2c1": {
+    "name": "Benoxaprofen",
+    "hazard_class": "Withdrawn Drug (MUSCULO-SKELETAL SYSTEM: ANTIINFLAMMATORY AND ANTIRHEUMATIC )",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL340978"
+  },
+  "CCCCC1C(=O)N(c2ccccc2)N(c2ccc(O)cc2)C1=O": {
+    "name": "Californit",
+    "hazard_class": "Withdrawn Drug (SENSORY ORGANS: OPHTHALMOLOGICALS: ANTIINFLAMMATORY AGENTS: )",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL1228"
+  },
+  "CCCC(C)(COC(N)=O)COC(=O)NC(C)C": {
+    "name": "Carisoprodol",
+    "hazard_class": "Withdrawn Drug (MUSCULO-SKELETAL SYSTEM: MUSCLE RELAXANTS: MUSCLE RELAXANTS,)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL1233"
+  },
+  "Nc1ccc(/N=N/c2ccccc2)c(N)n1": {
+    "name": "Phenazopyridine",
+    "hazard_class": "Withdrawn Drug (GENITO URINARY SYSTEM AND SEX HORMONES: UROLOGICALS: UROLOGI)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL1242"
+  },
+  "CC(=O)Oc1c(C)cc(OCC(O)CNC(C)C)c(C)c1C": {
+    "name": "Metipranolol",
+    "hazard_class": "Withdrawn Drug (SENSORY ORGANS: OPHTHALMOLOGICALS: ANTIGLAUCOMA PREPARATIONS)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL1291"
+  },
+  "CC(=O)N1CCN(c2ccc(OCC3COC(Cn4ccnc4)(c4ccc(Cl)cc4Cl)O3)cc2)CC1": {
+    "name": "Ketoconazole",
+    "hazard_class": "Withdrawn Drug (DERMATOLOGICALS: ANTIFUNGALS FOR DERMATOLOGICAL USE: ANTIFUN)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL157101"
+  },
+  "Cc1ccc(C(=O)c2cc(O)c(O)c([N+](=O)[O-])c2)cc1": {
+    "name": "Tolcapone",
+    "hazard_class": "Withdrawn Drug (NERVOUS SYSTEM: ANTI-PARKINSON DRUGS: DOPAMINERGIC AGENTS: O)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL1324"
+  },
+  "C[C@H]1CNCCc2ccc(Cl)cc21": {
+    "name": "Lorcaserin",
+    "hazard_class": "Withdrawn Drug (ALIMENTARY TRACT AND METABOLISM: ANTIOBESITY PREPARATIONS, E)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL360328"
+  },
+  "CC(CC(c1ccccc1)c1ccccc1)NC(C)(C)C": {
+    "name": "Terodiline",
+    "hazard_class": "Withdrawn Drug (GENITO URINARY SYSTEM AND SEX HORMONES: UROLOGICALS: UROLOGI)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL363295"
+  },
+  "CC(C(=O)O)c1ccc(N2CC=CC2)c(Cl)c1": {
+    "name": "Pirprofen",
+    "hazard_class": "Withdrawn Drug (MUSCULO-SKELETAL SYSTEM: ANTIINFLAMMATORY AND ANTIRHEUMATIC )",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL188952"
+  },
+  "CN[C@@H](C)[C@H](O)c1ccccc1": {
+    "name": "(-)-ephedrine",
+    "hazard_class": "Withdrawn Drug (CARDIOVASCULAR SYSTEM: CARDIAC THERAPY: CARDIAC STIMULANTS E)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL211456"
+  },
+  "CC(C)CC(N(C)C)C1(c2ccc(Cl)cc2)CCC1": {
+    "name": "Sibutramine",
+    "hazard_class": "Withdrawn Drug (ALIMENTARY TRACT AND METABOLISM: ANTIOBESITY PREPARATIONS, E)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL1419"
+  },
+  "c1ccc([C@H]2CN3CCSC3=N2)cc1": {
+    "name": "Levamisole",
+    "hazard_class": "Withdrawn Drug (ANTIPARASITIC PRODUCTS, INSECTICIDES AND REPELLENTS: ANTHELM)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL1454"
+  },
+  "COCc1c(C(C)C)nc(C(C)C)c(/C=C/[C@@H](O)C[C@@H](O)CC(=O)O)c1-c1ccc(F)cc1": {
+    "name": "Cerivastatin",
+    "hazard_class": "Withdrawn Drug (CARDIOVASCULAR SYSTEM: LIPID MODIFYING AGENTS: LIPID MODIFYI)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL1477"
+  },
+  "CC(Cc1cccc(C(F)(F)F)c1)NCCOC(=O)c1ccccc1": {
+    "name": "Benfluorex",
+    "hazard_class": "Withdrawn Drug (ALIMENTARY TRACT AND METABOLISM: DRUGS USED IN DIABETES: BLO)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL400599"
+  },
+  "CCCCCCCCNC(C)C(O)c1ccc(SC(C)C)cc1": {
+    "name": "Suloctidil",
+    "hazard_class": "Withdrawn Drug (CARDIOVASCULAR SYSTEM: PERIPHERAL VASODILATORS: PERIPHERAL V)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL404849"
+  },
+  "CC[C@H](OC(C)=O)C(C[C@H](C)N(C)C)(c1ccccc1)c1ccccc1": {
+    "name": "Levacetylmethadol",
+    "hazard_class": "Withdrawn Drug (NERVOUS SYSTEM: OTHER NERVOUS SYSTEM DRUGS: DRUGS USED IN AD)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL1514"
+  },
+  "CC1(C)C(C=C(Cl)Cl)C1C(=O)OCc1cccc(Oc2ccccc2)c1": {
+    "name": "Permethrin",
+    "hazard_class": "Withdrawn Drug (ANTIPARASITIC PRODUCTS, INSECTICIDES AND REPELLENTS: ECTOPAR)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL1525"
+  },
+  "Cc1ccc(Nc2c(F)cccc2Cl)c(CC(=O)O)c1": {
+    "name": "Lumiracoxib",
+    "hazard_class": "Withdrawn Drug (MUSCULO-SKELETAL SYSTEM: ANTIINFLAMMATORY AND ANTIRHEUMATIC )",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL404108"
+  },
+  "CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3CCC4=CC(=O)CCC4=C3[C@@H](c3ccc(N(C)C)cc3)C[C@@]21C": {
+    "name": "Ulipristal acetate",
+    "hazard_class": "Withdrawn Drug",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL260538"
+  },
+  "CC(C)(N)Cc1ccccc1": {
+    "name": "Phentermine",
+    "hazard_class": "Withdrawn Drug (ALIMENTARY TRACT AND METABOLISM: ANTIOBESITY PREPARATIONS, E)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL1574"
+  },
+  "CN(C)c1ccc(C(=C2C=CC(=[N+](C)C)C=C2)c2ccc(N(C)C)cc2)cc1": {
+    "name": "Unknown",
+    "hazard_class": "Withdrawn Drug",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL459265"
+  },
+  "COc1cc(N)c(Cl)cc1C(=O)NC1CCN(CCCOc2ccc(F)cc2)CC1OC": {
+    "name": "Cisapride",
+    "hazard_class": "Withdrawn Drug (ALIMENTARY TRACT AND METABOLISM: DRUGS FOR FUNCTIONAL GASTRO)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL1729"
+  },
+  "CC[C@H]1[C@@H](O)[C@@H]2[C@H](CC[C@]3(C)[C@@H]([C@H](C)CCC(=O)O)CC[C@@H]23)[C@@]2(C)CC[C@@H](O)C[C@@H]12": {
+    "name": "Obeticholic acid",
+    "hazard_class": "Withdrawn Drug (ALIMENTARY TRACT AND METABOLISM: BILE AND LIVER THERAPY: BIL)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL566315"
+  },
+  "O=C(O)COc1nn(Cc2ccccc2)c2ccccc12": {
+    "name": "Bendazac",
+    "hazard_class": "Withdrawn Drug (MUSCULO-SKELETAL SYSTEM: TOPICAL PRODUCTS FOR JOINT AND MUSC)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL1089221"
+  },
+  "CCN(CC)C(C)C(=O)c1ccccc1": {
+    "name": "Amfepramone",
+    "hazard_class": "Withdrawn Drug (ALIMENTARY TRACT AND METABOLISM: ANTIOBESITY PREPARATIONS, E)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL1194666"
+  },
+  "CN1C(=O)CCS(=O)(=O)C1c1ccc(Cl)cc1": {
+    "name": "Chlormezanone",
+    "hazard_class": "Withdrawn Drug (MUSCULO-SKELETAL SYSTEM: MUSCLE RELAXANTS: MUSCLE RELAXANTS,)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL1200714"
+  },
+  "CCCCCC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3CCC4=CC(=O)CC[C@]4(C)[C@H]3CC[C@@]21C": {
+    "name": "Hydroxyprogesterone caproate",
+    "hazard_class": "Withdrawn Drug (GENITO URINARY SYSTEM AND SEX HORMONES: SEX HORMONES AND MOD)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL1200848"
+  },
+  "Cc1cc(C(=O)NNCc2ccccc2)no1": {
+    "name": "Isocarboxazid",
+    "hazard_class": "Withdrawn Drug (NERVOUS SYSTEM: PSYCHOANALEPTICS: ANTIDEPRESSANTS: Monoamine)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL1201168"
+  },
+  "C[C@H](N)C(=O)N[C@@H](C)C(=O)N[C@H]1[C@@H]2CN(c3nc4c(cc3F)c(=O)c(C(=O)O)cn4-c3ccc(F)cc3F)C[C@@H]21": {
+    "name": "Alatrofloxacin",
+    "hazard_class": "Withdrawn Drug",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL1201197"
+  },
+  "C=CC[N+]1([C@H]2C[C@H]3[C@@H]4CC[C@H]5C[C@H](OC(C)=O)[C@@H](N6CCCCC6)C[C@]5(C)[C@H]4CC[C@]3(C)[C@H]2OC(=O)CC)CCCCC1": {
+    "name": "Rapacuronium cation",
+    "hazard_class": "Withdrawn Drug",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL1201352"
+  },
+  "CCC(=O)O[C@](Cc1ccccc1)(c1ccccc1)[C@H](C)CN(C)C": {
+    "name": "Dextropropoxyphene",
+    "hazard_class": "Withdrawn Drug (NERVOUS SYSTEM: ANALGESICS: OPIOIDS: Diphenylpropylamine der)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL1213351"
+  },
+  "CC(CN(C)C)C(C)(O)Cc1ccc(Cl)cc1": {
+    "name": "Clobutinol",
+    "hazard_class": "Withdrawn Drug (RESPIRATORY SYSTEM: COUGH AND COLD PREPARATIONS: COUGH SUPPR)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL1474889"
+  },
+  "C[C@H]1[C@H](c2ccccc2)OCCN1C": {
+    "name": "Phendimetrazine",
+    "hazard_class": "Withdrawn Drug",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL1615439"
+  },
+  "C/C=C(/C)C(=O)O[C@H]1C(C)=C[C@]23C(=O)[C@@H](C=C(CO)[C@@H](O)[C@]12O)[C@H]1[C@@H](C[C@H]3C)C1(C)C": {
+    "name": "Ingenol mebutate",
+    "hazard_class": "Withdrawn Drug (DERMATOLOGICALS: ANTIBIOTICS AND CHEMOTHERAPEUTICS FOR DERMA)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL1863513"
+  },
+  "COc1cc(/C=C/C(=O)N2CCN(CC(=O)N3CCCC3)CC2)cc(OC)c1OC": {
+    "name": "Cinepazide",
+    "hazard_class": "Withdrawn Drug (CARDIOVASCULAR SYSTEM: PERIPHERAL VASODILATORS: PERIPHERAL V)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL1874750"
+  },
+  "Cn1cc([S+](C)[O-])c(=O)c2ccc(F)cc21": {
+    "name": "Flosequinan",
+    "hazard_class": "Withdrawn Drug (CARDIOVASCULAR SYSTEM: CARDIAC THERAPY: VASODILATORS USED IN)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL1908307"
+  },
+  "C=CCN1CCCC1CNC(=O)c1cc(S(N)(=O)=O)cc(OC)c1OC": {
+    "name": "Veralipride",
+    "hazard_class": "Withdrawn Drug (NERVOUS SYSTEM: PSYCHOLEPTICS: ANTIPSYCHOTICS: Benzamides)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL2105581"
+  },
+  "CCC(=O)O[C@H]1[C@H](O[C@@H]2[C@@H](C)[C@H](O[C@H]3C[C@@](C)(OC)[C@@H](O)[C@H](C)O3)[C@@H](C)C(=O)O[C@H](CC)[C@@](C)(O)[C@H](O)[C@@H](C)C(=O)[C@H](C)C[C@@]2(C)O)O[C@H](C)C[C@@H]1N(C)C": {
+    "name": "Erythromycin propionate",
+    "hazard_class": "Withdrawn Drug",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL2220427"
+  },
+  "CC(C)Oc1ccc(-c2nn([C@@H](C)c3oc4ccc(F)cc4c(=O)c3-c3cccc(F)c3)c3ncnc(N)c23)cc1F": {
+    "name": "Umbralisib",
+    "hazard_class": "Withdrawn Drug (ANTINEOPLASTIC AND IMMUNOMODULATING AGENTS: ANTINEOPLASTIC A)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL3948730"
+  },
+  "CC(C)n1nccc1-c1ncccc1COc1cccc(O)c1C=O": {
+    "name": "Voxelotor",
+    "hazard_class": "Withdrawn Drug (BLOOD AND BLOOD FORMING ORGANS: OTHER HEMATOLOGICAL AGENTS: )",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL4101807"
+  },
+  "CCOC(=O)[C@H](Cc1ccc(F)cc1)NC(=O)[C@@H](N)Cc1ccc(N(CCCl)CCCl)cc1": {
+    "name": "Melphalan flufenamide",
+    "hazard_class": "Withdrawn Drug (ANTINEOPLASTIC AND IMMUNOMODULATING AGENTS: ANTINEOPLASTIC A)",
+    "source": "ChEMBL Withdrawn Drug",
+    "chembl_id": "CHEMBL4303060"
+  },
+  "C=O": {
+    "name": "Formaldehyde",
+    "hazard_class": "IARC Group 1 Carcinogen, OSHA PEL",
+    "source": "OSHA/EPA Priority Hazard"
+  },
+  "CN=C=O": {
+    "name": "Methyl Isocyanate (MIC)",
+    "hazard_class": "Acute Lethal (Bhopal Disaster Agent)",
+    "source": "OSHA/EPA Priority Hazard"
+  },
+  "C#N": {
+    "name": "Hydrogen Cyanide",
+    "hazard_class": "Acute Lethal (Cytochrome Oxidase Inhibitor)",
+    "source": "OSHA/EPA Priority Hazard"
+  },
+  "c1ccccc1": {
+    "name": "Benzene",
+    "hazard_class": "IARC Group 1 Carcinogen, OSHA PEL",
+    "source": "OSHA/EPA Priority Hazard"
+  },
+  "O=C(Cl)Cl": {
+    "name": "Phosgene",
+    "hazard_class": "Chemical Warfare Agent (Pulmonary)",
+    "source": "OSHA/EPA Priority Hazard"
+  },
+  "[AsH3]": {
+    "name": "Arsine",
+    "hazard_class": "Acute Lethal (Hemolytic Agent)",
+    "source": "OSHA/EPA Priority Hazard"
+  }
+}
