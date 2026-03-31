@@ -1,55 +1,97 @@
+from __future__ import annotations
+
+import importlib
+import runpy
 import sys
-import os
-import io
-import warnings
+from pathlib import Path
 
-# Suppress warnings for clean testing output
-warnings.filterwarnings("ignore")
+import pandas as pd
 
-# Add app to path to import the logic
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "app"))
-from streamlit_app import load_model_file, predict_and_explain
 
-def run_tests():
-    print("Loading model...")
-    artifact, model_type = load_model_file()
-    if artifact is None:
-        print("ERROR: Model not found.")
-        return
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-    print(f"Model loaded: {model_type}")
-    
-    test_cases = [
-        ("Valid Safe", "CCO"),
-        ("Valid Toxic", "O=C(O)CCC(=O)c1ccc(-c2ccccc2)cc1"),
-        ("Invalid SMILES 1", "invalid_smiles"),
-        ("Invalid SMILES 2", "12345"),
-        ("Empty SMILES", ""),
-        ("None", None),
-        ("Extremely Long SMILES", "C" * 150),
-        ("Salt/Disconnected", "[Na+].[Cl-]"),
-    ]
+from src.pipeline_utils import (  # noqa: E402
+    build_scaled_feature_vector,
+    load_model_artifact,
+    load_priority_toxin_dict,
+    lookup_priority_toxin,
+    predict_with_model,
+)
 
-    bugs_found = 0
 
-    print("Running tests...\n")
-    for name, smiles in test_cases:
-        print(f"--- Test: {name} ({smiles}) ---")
-        try:
-            prediction, probability, descriptors, shap_values, error_msg = predict_and_explain(smiles, artifact)
-            if error_msg:
-                print(f"Gracefully handled with error message: {error_msg}")
-            else:
-                pred_label = "Toxic" if prediction == 1 else "Safe"
-                print(f"Prediction: {pred_label} (Prob: {probability[1]:.2f})")
-                print(f"Descriptors computed: {len(descriptors)}")
-                print(f"SHAP values computed: {'Yes' if shap_values is not None else 'No'}")
-        except Exception as e:
-            print(f"💥 BUG FOUND: Unhandled Exception: {str(e)}")
-            bugs_found += 1
-        print("")
-        
-    print(f"Tests complete. Total crashing bugs found: {bugs_found}")
+def test_priority_toxin_dictionary_contains_expected_entries():
+    toxin_dict = load_priority_toxin_dict()
 
-if __name__ == "__main__":
-    run_tests()
+    formaldehyde = lookup_priority_toxin("C=O", toxin_dict)
+    mic = lookup_priority_toxin("CN=C=O", toxin_dict)
+    troglitazone_smiles = next(
+        smiles for smiles, meta in toxin_dict.items()
+        if "troglitazone" in str(meta.get("name", "")).lower()
+    )
+    troglitazone = lookup_priority_toxin(troglitazone_smiles, toxin_dict)
+
+    assert formaldehyde is not None
+    assert formaldehyde["name"] == "Formaldehyde"
+    assert mic is not None
+    assert "Methyl Isocyanate" in mic["name"]
+    assert troglitazone is not None
+    assert "troglitazone" in troglitazone["name"].lower()
+
+
+def test_runtime_loader_prefers_best_model():
+    artifact = load_model_artifact(prefer_best=True)
+
+    assert artifact is not None
+    assert Path(artifact["artifact_path"]).name == "best_model.pkl"
+    assert len(artifact["feature_names"]) > 1000
+
+
+def test_non_dictionary_compound_flows_into_ml_inference():
+    artifact = load_model_artifact(prefer_best=True)
+    assert artifact is not None
+
+    toxin_dict = load_priority_toxin_dict()
+    assert lookup_priority_toxin("CCO", toxin_dict) is None
+
+    inference = predict_with_model("CCO", artifact)
+
+    assert inference["verdict"] in {"SAFE", "UNCERTAIN", "CRITICAL HAZARD"}
+    assert inference["safe_threshold"] < inference["hazard_threshold"]
+    if inference["verdict"] == "SAFE":
+        assert float(inference["probability"][1]) <= inference["safe_threshold"]
+    elif inference["verdict"] == "CRITICAL HAZARD":
+        assert float(inference["probability"][1]) >= inference["hazard_threshold"]
+    else:
+        assert inference["safe_threshold"] < float(inference["probability"][1]) < inference["hazard_threshold"]
+
+    assert inference["prediction"] in {0, 1}
+    assert inference["feature_vector"].shape == (1, len(artifact["feature_names"]))
+    assert 0.0 <= float(inference["probability"][1]) <= 1.0
+
+
+def test_scaled_feature_vector_matches_artifact_shape():
+    artifact = load_model_artifact(prefer_best=True)
+    assert artifact is not None
+
+    payload = build_scaled_feature_vector("CCO", artifact)
+
+    assert payload["feature_vector"].shape[1] == len(artifact["feature_names"])
+    assert payload["canonical_smiles"] == "CCO"
+
+
+def test_processed_labels_and_features_stay_aligned():
+    labels = pd.read_csv(ROOT / "data" / "processed" / "labels.csv")
+    features = pd.read_csv(ROOT / "data" / "processed" / "features.csv")
+
+    assert len(labels) == len(features)
+    assert list(labels.columns)[:2] == ["smiles", "toxicity"]
+    assert sum(col.startswith("FP_") for col in features.columns) == 1024
+
+
+def test_compare_chembl_experiment_imports_as_module_and_script():
+    importlib.import_module("src.compare_chembl_experiment")
+    result = runpy.run_path(str(ROOT / "src" / "compare_chembl_experiment.py"), run_name="__codex_test__")
+
+    assert "run_one" in result

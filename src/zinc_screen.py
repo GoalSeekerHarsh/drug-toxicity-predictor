@@ -2,7 +2,7 @@
 zinc_screen.py – Virtual Drug Toxicity Screening on ZINC-250k Library
 
 This script uses the trained XGBoost model to predict which molecules
-in the ZINC-250k library are predicted to be toxic (NR-AR assay).
+in the ZINC-250k library are predicted to be hazardous, uncertain, or safe.
 
 This is exactly the kind of workflow drug discovery pipelines use:
   STEP 1: Train model on known data (Tox21)
@@ -19,14 +19,17 @@ Usage:
 
 import os
 import sys
-import joblib
 import pandas as pd
-import numpy as np
 
 # ── Connect src modules ──────────────────────────────────────
 sys.path.insert(0, os.path.dirname(__file__))
 from zinc_loader import load_zinc, validate_zinc
-from feature_engineering import smiles_to_mol, compute_descriptors, compute_morgan_fingerprint
+from pipeline_utils import (
+    DEFAULT_HAZARD_THRESHOLD,
+    DEFAULT_SAFE_THRESHOLD,
+    load_model_artifact,
+    predict_with_model,
+)
 
 # ── Configuration ──────────────────────────────────────────────
 MODELS_DIR = os.path.join(os.path.dirname(__file__), "..", "models")
@@ -38,49 +41,11 @@ SCREEN_SIZE = 1000
 
 def load_model():
     """Load the best trained model."""
-    paths = [
-        os.path.join(MODELS_DIR, "tuned_xgboost_model.pkl"),
-        os.path.join(MODELS_DIR, "baseline_best_model.pkl"),
-    ]
-    for p in paths:
-        if os.path.exists(p):
-            print(f"  Loading model: {os.path.basename(p)}")
-            return joblib.load(p)
-    raise FileNotFoundError("No trained model found. Run improve_model.py first.")
-
-
-def build_feature_vector(smiles, artifact):
-    """
-    Convert a SMILES string to the exact feature vector the model expects.
-    Returns None if the SMILES is invalid.
-    """
-    mol = smiles_to_mol(smiles)
-    if mol is None:
-        return None
-
-    try:
-        desc = compute_descriptors(mol)
-        fp = compute_morgan_fingerprint(mol, radius=2, n_bits=1024)
-        if desc is None or fp is None:
-            return None
-    except Exception:
-        return None
-
-    feature_names = artifact["feature_names"]
-    feature_vector = []
-    for name in feature_names:
-        if name.startswith("FP_"):
-            try:
-                bit_idx = int(name.split("_")[1])
-                feature_vector.append(fp[bit_idx] if bit_idx < len(fp) else 0.0)
-            except (ValueError, IndexError):
-                feature_vector.append(0.0)
-        else:
-            feature_vector.append(desc.get(name, 0.0))
-
-    v = np.array(feature_vector, dtype=float)
-    v = np.nan_to_num(v, nan=0.0, posinf=0.0, neginf=0.0)
-    return v.reshape(1, -1)
+    artifact = load_model_artifact(prefer_best=True)
+    if artifact is None:
+        raise FileNotFoundError("No trained model found. Run improve_model.py first.")
+    print(f"  Loading model: {os.path.basename(artifact['artifact_path'])}")
+    return artifact
 
 
 def screen_zinc(artifact, screen_size=SCREEN_SIZE):
@@ -94,25 +59,22 @@ def screen_zinc(artifact, screen_size=SCREEN_SIZE):
     df = load_zinc(n_sample=screen_size)
     df = validate_zinc(df)
 
-    model  = artifact["model"]
-    scaler = artifact["scaler"]
-
     results = []
     skipped = 0
 
     print(f"  Screening {len(df):,} molecules...")
     for i, row in df.iterrows():
         smiles = str(row["smiles"])
-        fv = build_feature_vector(smiles, artifact)
-
-        if fv is None:
-            skipped += 1
-            continue
 
         try:
-            fv_scaled = scaler.transform(fv)
-            prob = model.predict_proba(fv_scaled)[0][1]
-            verdict = "TOXIC" if prob >= 0.5 else "SAFE"
+            inference = predict_with_model(
+                smiles,
+                artifact,
+                safe_threshold=DEFAULT_SAFE_THRESHOLD,
+                hazard_threshold=DEFAULT_HAZARD_THRESHOLD,
+            )
+            prob = float(inference["probability"][1])
+            verdict = inference["verdict"]
         except Exception:
             skipped += 1
             continue
@@ -136,16 +98,18 @@ def print_and_save_summary(results_df):
     os.makedirs(REPORTS_DIR, exist_ok=True)
 
     total    = len(results_df)
-    n_toxic  = (results_df["verdict"] == "TOXIC").sum()
+    n_hazard = (results_df["verdict"] == "CRITICAL HAZARD").sum()
     n_safe   = (results_df["verdict"] == "SAFE").sum()
-    pct_tox  = n_toxic / total * 100 if total > 0 else 0
+    n_uncertain = (results_df["verdict"] == "UNCERTAIN").sum()
+    pct_tox  = n_hazard / total * 100 if total > 0 else 0
 
     print("\n" + "=" * 60)
     print("  🔍 Virtual Screening Summary")
     print("=" * 60)
     print(f"  Total molecules screened: {total:,}")
-    print(f"  Predicted TOXIC:          {n_toxic:,} ({pct_tox:.1f}%)")
-    print(f"  Predicted SAFE:           {n_safe:,} ({100 - pct_tox:.1f}%)")
+    print(f"  Predicted CRITICAL HAZARD: {n_hazard:,} ({pct_tox:.1f}%)")
+    print(f"  Predicted SAFE:           {n_safe:,}")
+    print(f"  Predicted UNCERTAIN:      {n_uncertain:,}")
 
     print("\n  🏆 Top 10 Highest-Risk Molecules (sorted by toxicity probability):")
     top_hits = results_df.sort_values("toxicity_prob", ascending=False).head(10)
@@ -161,8 +125,9 @@ def print_and_save_summary(results_df):
     with open(txt_path, "w") as f:
         f.write(f"ZINC-250k Virtual Screening Summary\n")
         f.write(f"Molecules screened:   {total:,}\n")
-        f.write(f"Predicted TOXIC:      {n_toxic:,} ({pct_tox:.1f}%)\n")
-        f.write(f"Predicted SAFE:       {n_safe:,} ({100 - pct_tox:.1f}%)\n\n")
+        f.write(f"Predicted CRITICAL HAZARD: {n_hazard:,} ({pct_tox:.1f}%)\n")
+        f.write(f"Predicted SAFE:           {n_safe:,}\n")
+        f.write(f"Predicted UNCERTAIN:      {n_uncertain:,}\n\n")
         f.write("Top 10 Highest-Risk Molecules:\n")
         f.write(top_hits[["smiles", "toxicity_prob"]].to_string(index=False))
     print(f"📝  Summary saved to: {txt_path}")

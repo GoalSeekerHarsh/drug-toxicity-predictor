@@ -10,18 +10,26 @@ Built for the **Drug Toxicity Prediction Hackathon**.
 Drug development is a billion-dollar process that frequently fails in late stages due to unexpected compound toxicity. Identifying toxic properties computationally *before* physical synthesis or animal testing can drastically reduce R&D costs, accelerate discovery, and improve patient safety. Our goal is to predict chemical toxicity strictly from structural notations (SMILES).
 
 ## 2. Dataset
-This project uses the industry-standard **Tox21 (Toxicology in the 21st Century) dataset**.
-- **Scope**: ~7,800 validated chemical compounds.
-- **Labels**: We specifically target the `NR-AR` (Androgen Receptor) toxicity endpoint.
-- **Imbalance**: Highly imbalanced; only ~4.2% of the compounds in the dataset are flagged as toxic.
+This project uses two complementary sources:
+- **Tox21 (primary labels):** ~7,800 validated compounds. A molecule is labelled `1` if it is positive in **any** tested Tox21 assay, otherwise `0`.
+- **ChEMBL withdrawn drugs (auxiliary labels):** a conservative set of withdrawn compounds added as extra toxic examples. These rows are kept **down-weighted** during training because they are useful but noisier than Tox21.
+
+Current processed dataset snapshot:
+- **7,855 compounds total**
+- **7,823 Tox21 rows**
+- **32 ChEMBL auxiliary rows**
 
 ## 3. The Pipeline
-1. **Data Cleaning (`src/data_loader.py`)**: Validates raw SMILES strings using RDKit, removes unparseable molecules, and deduplicates the records.
+1. **Data Cleaning (`src/data_loader.py`)**: Validates raw SMILES strings using RDKit, removes unparseable molecules, canonicalizes structures, deduplicates them chemically, aggregates all Tox21 assays into one binary label, and merges the auxiliary ChEMBL supplement.
 2. **Feature Engineering (`src/feature_engineering.py`)**: Converts SMILES strings into a dense 1,241-dimensional feature matrix:
    - *217 Molecular Descriptors* (Weight, LogP, TPSA, etc.)
    - *1024-bit Morgan Fingerprints* (ECFP4 standard to capture structural sub-graphs).
-3. **Model Tuning (`src/improve_model.py`)**: Trains an optimized **XGBoost Classifier**. It handles the extreme class imbalance by leveraging Synthetic Minority Over-sampling (SMOTE) and algorithm-level class weighting (`scale_pos_weight`).
-4. **Explainability (`src/shap_explain.py`)**: Employs TreeExplainer to unpack the XGBoost black-box, extracting both global feature importance (top descriptors) and local explanations (single molecule waterfall plots).
+3. **Baseline Models (`src/baseline_models.py`)**: Trains Logistic Regression and Random Forest on the same stratified `70/15/15` split and the same continuous-only scaling contract used everywhere else.
+4. **Model Tuning (`src/improve_model.py`)**: Trains the production **XGBoost Classifier** with simple precision-first tuning. ChEMBL rows are down-weighted by default (`0.5`) so Tox21 remains dominant.
+5. **Ablation (`src/compare_chembl_experiment.py`)**: Compares XGBoost performance with vs. without ChEMBL and promotes the better run to `models/best_model.pkl`.
+6. **Explainability (`src/shap_explain.py`, `src/explainability.py`)**: Uses SHAP on the selected production artifact and the exact same feature scaling contract used at inference time.
+7. **Priority Toxin Bypass (`data/priority_toxins.json`)**: The Streamlit app checks a canonicalized toxin dictionary before ML inference. Exact matches return **CRITICAL HAZARD** and bypass the model entirely.
+8. **Precision-First Verdicts**: Non-dictionary predictions are triaged into **SAFE**, **UNCERTAIN**, or **CRITICAL HAZARD** using conservative thresholds so the app avoids overconfident binary calls.
 
 ## 4. Installation & Setup
 
@@ -51,21 +59,34 @@ streamlit run app/streamlit_app.py
 ```
 *Navigate to `http://localhost:8501`. Enter any valid SMILES string (e.g., `CCO`, `c1ccccc1`) to see real-time toxicity screening and SHAP breakdown plots.*
 
+Recommended local workflow:
+```bash
+python -m src.data_loader
+python -m src.feature_engineering
+python -m src.baseline_models
+python -m src.improve_model
+python -m src.compare_chembl_experiment
+python -m src.final_report
+streamlit run app/streamlit_app.py
+```
+
 ## 6. Model Results
-Our tuned XGBoost model was evaluated on a strictly held-out 15% Test Set. 
+Current ChEMBL ablation results on the held-out test split:
 
-- **Test ROC-AUC:** `0.7637`
-- **F1-Score:** `0.3439` (Due to heavy 95:5 class imbalance, precision naturally suffers compared to recall, which we optimized for safety).
-- **Recall (Sensitivity):** `0.4355`
+- **With ChEMBL:** ROC-AUC `0.7816`, PR-AUC `0.7007`, Precision `0.7265`
+- **Without ChEMBL:** ROC-AUC `0.7191`, PR-AUC `0.5969`, Precision `0.7100`
 
-The model is incredibly precise at identifying safe compounds and is tuned aggressively to catch toxic drugs early using `scale_pos_weight`.
+Interpretation:
+- The weighted ChEMBL supplement improves ranking quality without replacing Tox21 as the main source of truth.
+- Precision remains the primary promotion metric, with PR-AUC as the tie-breaker.
+- The production app now prefers `models/best_model.pkl`, which is updated by the ablation workflow.
+- The runtime verdict is intentionally tri-state so uncertain molecules do not get forced into a fake binary answer.
 
 ## 7. Feature Importance Summary
 Using SHAP analysis, we identified the top structural drivers indicating toxicity:
-1. `BCUT2D_MWLOW` (Molecular weight/burden eigenvalue)
-2. `HallKierAlpha` (Topological shape and branching)
-3. `BertzCT` (Symmetry and complexity of molecular rings)
-4. `RingCount` (Number of aliphatic/aromatic rings)
+1. Descriptor-driven global effects are still useful for interpretation.
+2. Morgan fingerprint bits capture many of the strongest toxic substructure signals.
+3. The most current top-feature list is written to `reports/top_features.csv` after running explainability.
 
 ## 8. Future Work
 If given more time past this hackathon, we would explore:

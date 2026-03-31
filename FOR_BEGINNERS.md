@@ -46,10 +46,16 @@ If we give the computer `CCO`, the computer knows exactly how many atoms are the
 I wrote several different computer files (scripts) to make this work. Here is exactly what every single file does, in order:
 
 ### Step 1: Cleaning the Old Textbooks (`src/data_loader.py`)
-If you want to teach a student, you have to give them a textbook. Our textbook is a dataset called **Tox21**. It has thousands of rows. Each row has a SMILES code and a final answer: "SAFE" (0) or "TOXIC" (1).
+If you want to teach a student, you have to give them a textbook. Our main textbook is a dataset called **Tox21**. It has thousands of rows. Each row has a SMILES code plus several mini-tests that check whether the molecule triggers dangerous biological pathways.
 
 But the textbook had mistakes! Some lines were blank. Some had duplicate codes.
-So, I wrote `data_loader.py`. This file reads the giant spreadsheet and scrubs it clean. It throws away the blank lines to make sure our AI doesn't get confused when it tries to read the book.
+So, I wrote `data_loader.py`. This file reads the giant spreadsheet and scrubs it clean. It throws away the blank lines, fixes the molecule text into one standard format, and then asks one big question:
+
+> "Did **any** Tox21 test say this molecule looked toxic?"
+
+If the answer is yes, the molecule gets label `1`. If all tested pathways stay quiet, it gets label `0`.
+
+I also add a second, smaller helper textbook: **withdrawn drugs from ChEMBL**. These are treated as extra toxic examples, but with a lighter training weight because they are useful and noisy at the same time.
 
 ### Step 2: Giving the Computer a Tape Measure (`src/feature_engineering.py`)
 The computer can read the SMILES code, but it doesn't know what "heavy" or "water-soluble" means. We need to give the computer a way to measure the molecule. 
@@ -68,12 +74,14 @@ Think of XGBoost as a game of "20 Questions." It looks at the thousands of safe 
 1. *Question 1:* Is the molecule heavier than 100? Yes? Go left. No? Go right.
 2. *Question 2:* Does it have a lot of chlorine atoms? Yes? Go left.
 
-XGBoost makes thousands of these trees, learning exactly what makes a molecule toxic and what makes it safe. The coolest part is that the data was unbalanced (only 5% of molecules were toxic). I gave XGBoost special instructions (`scale_pos_weight`) saying: *"Hey! The toxic ones are rare, so put a giant penalty on yourself if you miss one!"*
+XGBoost makes thousands of these trees, learning exactly what makes a molecule toxic and what makes it safe. The coolest part is that the data is still a little tricky, because the withdrawn ChEMBL examples are helpful but not as clean as Tox21. So instead of pretending they are perfect, we tell the model:
 
-When the training is done, I saved the brain into a tiny file called `tuned_xgboost_model.pkl`. This is our final AI.
+> "Listen to the Tox21 lab labels the most. Listen to the ChEMBL withdrawn examples too, but only at half-volume."
+
+When the training is done, I save the chosen production brain into `best_model.pkl`. I also keep `tuned_xgboost_model.pkl` around as a compatibility copy so older scripts still work.
 
 ### Step 4: Making the AI Explain Itself (`src/shap_explain.py`)
-Imagine a doctor is about to give a patient medicine. The AI yells: *"STOP! It is TOXIC!"* 
+Imagine a doctor is about to give a patient medicine. The AI yells: *"STOP! It is CRITICAL HAZARD!"* 
 The doctor will ask: *"Why?!"* 
 If the AI just says *"Because I said so"*, the doctor won't trust it.
 
@@ -84,9 +92,11 @@ Nobody outside of software engineers likes using black terminal screens with gre
 
 I used a library called **Streamlit** to build a website.
 1. It draws a clean box where the user can type the SMILES code (`CCO`).
-2. When they press Enter, the website sends the code to the AI brain (`tuned_xgboost_model.pkl`).
-3. The AI reads it, passes it through the XGBoost trees, and calculates a percentage (like 80% Toxic).
-4. The website instantly draws the 2D molecule and the SHAP red/blue X-ray chart right on the screen.
+2. Before the AI even wakes up, the website checks a special **Priority Toxin Dictionary**.
+3. If the molecule is an exact match for a known high-danger compound, the website instantly says: **"CRITICAL HAZARD"** and skips machine learning completely.
+4. If it is not in the dictionary, the website sends the code to the AI brain (`best_model.pkl`).
+5. The AI reads it, passes it through the XGBoost trees, and returns one of three verdicts: **SAFE**, **UNCERTAIN**, or **CRITICAL HAZARD**.
+6. The website instantly draws the 2D molecule and the SHAP red/blue X-ray chart right on the screen.
 
 I also added a **"Graceful Failure"** safety net. If a child types `I_LOVE_PIZZA` instead of a real chemical code, the app won't crash and burn. It will catch the error, smile, and put up a red box saying: *"Oops! That relies on invalid SMILES code, RDKit can't parse it."*
 
@@ -96,7 +106,7 @@ To prove the AI actually works, we don't just want to predict one molecule at a 
 We downloaded a massive library called **ZINC-250k**. This is a list of 250,000 drug-like molecules that the AI has NEVER seen before in its life. Nobody knows if they are safe or toxic!
 1. I wrote `zinc_loader.py` to organize these 250,000 new molecules.
 2. I wrote `zinc_screen.py` to grab 1,000 of them and throw them at our trained XGBoost brain at super speed.
-3. The AI churned through them and found exactly **32 highly toxic molecules** out of the 1,000, and warned us not to use them!
+3. The AI churned through them and found a high-confidence hazard subset, while leaving borderline molecules in the **UNCERTAIN** bucket instead of pretending they were certain.
 
 We placed these results inside our Streamlit app in a special "Batch Upload" tab so the hackathon judges can see how fast and powerful the AI is when screening thousands of drugs at once.
 

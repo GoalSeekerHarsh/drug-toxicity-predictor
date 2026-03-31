@@ -1,6 +1,11 @@
 """
 model.py – Train and evaluate toxicity prediction models
 
+Legacy note:
+    This module is kept for reference and experimentation. For the maintained
+    production pipeline, prefer `src/baseline_models.py` and
+    `src/improve_model.py`.
+
 This module handles:
   1. Loading the feature matrix and labels
   2. Stratified train / validation / test split (handles class imbalance)
@@ -39,6 +44,11 @@ from imblearn.over_sampling import SMOTE
 import joblib
 
 try:
+    from .pipeline_utils import resolve_label_column
+except ImportError:
+    from pipeline_utils import resolve_label_column  # type: ignore
+
+try:
     import xgboost as xgb
     HAS_XGBOOST = True
 except ImportError:
@@ -67,8 +77,7 @@ def load_data():
     features = pd.read_csv(os.path.join(PROCESSED_DATA_DIR, "features.csv"))
     labels = pd.read_csv(os.path.join(PROCESSED_DATA_DIR, "labels.csv"))
 
-    # The label column is whichever column isn't "smiles"
-    label_col = [c for c in labels.columns if c != "smiles"][0]
+    label_col = resolve_label_column(labels)
     y = labels[label_col].values
     X = features.values
     feature_names = features.columns.tolist()

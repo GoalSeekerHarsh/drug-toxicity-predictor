@@ -1,0 +1,76 @@
+{
+  "selection_metric": "precision_then_pr_auc",
+  "selected_model": "Random Forest",
+  "validation": {
+    "logistic_regression": {
+      "roc_auc": 0.5,
+      "pr_auc": 0.36980491942324,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "confusion_matrix": [
+        [
+          743,
+          0
+        ],
+        [
+          436,
+          0
+        ]
+      ]
+    },
+    "random_forest": {
+      "roc_auc": 0.8161525923913715,
+      "pr_auc": 0.7523774815029803,
+      "precision": 0.7542857142857143,
+      "recall": 0.6055045871559633,
+      "f1": 0.6717557251908397,
+      "confusion_matrix": [
+        [
+          657,
+          86
+        ],
+        [
+          172,
+          264
+        ]
+      ]
+    }
+  },
+  "test": {
+    "logistic_regression": {
+      "roc_auc": 0.5,
+      "pr_auc": 0.36895674300254455,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "confusion_matrix": [
+        [
+          744,
+          0
+        ],
+        [
+          435,
+          0
+        ]
+      ]
+    },
+    "random_forest": {
+      "roc_auc": 0.8000108144852305,
+      "pr_auc": 0.734156349657151,
+      "precision": 0.7677419354838709,
+      "recall": 0.5471264367816092,
+      "f1": 0.6389261744966444,
+      "confusion_matrix": [
+        [
+          672,
+          72
+        ],
+        [
+          197,
+          238
+        ]
+      ]
+    }
+  }
+}

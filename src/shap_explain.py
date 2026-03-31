@@ -17,7 +17,6 @@ Note on parameters:
 """
 
 import os
-import joblib
 import pandas as pd
 import numpy as np
 import matplotlib
@@ -32,17 +31,20 @@ PROCESSED_DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "proc
 MODELS_DIR = os.path.join(os.path.dirname(__file__), "..", "models")
 REPORTS_DIR = os.path.join(os.path.dirname(__file__), "..", "reports")
 
+try:
+    from .pipeline_utils import load_model_artifact, transform_feature_frame
+except ImportError:
+    from pipeline_utils import load_model_artifact, transform_feature_frame  # type: ignore
+
 
 def load_model_and_data():
     """Load the best tuned model and the feature data."""
-    model_path = os.path.join(MODELS_DIR, "tuned_xgboost_model.pkl")
-    if not os.path.exists(model_path):
-        raise FileNotFoundError(f"Tuned model not found at {model_path}. Run improve_model.py first.")
-        
-    print(f"Loading model from: {model_path}")
-    artifact = joblib.load(model_path)
+    artifact = load_model_artifact(prefer_best=True)
+    if artifact is None:
+        raise FileNotFoundError("No trained model artifact found. Run improve_model.py first.")
+
+    print(f"Loading model from: {artifact['artifact_path']}")
     model = artifact["model"]
-    scaler = artifact["scaler"]
     feature_names = artifact["feature_names"]
     
     # Load dataset
@@ -53,8 +55,7 @@ def load_model_and_data():
     # 500 molecules is plenty for a global summary plot
     n_sample = min(500, len(features))
     sample_df = features.sample(n=n_sample, random_state=42)
-    X_sample_raw = sample_df.values
-    X_sample_scaled = scaler.transform(X_sample_raw)
+    X_sample_scaled = transform_feature_frame(sample_df, artifact)
     
     return model, X_sample_scaled, feature_names
 

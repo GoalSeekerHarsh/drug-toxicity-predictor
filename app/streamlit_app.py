@@ -10,16 +10,23 @@ import sys
 import numpy as np
 import pandas as pd
 import streamlit as st
-import joblib
 import matplotlib.pyplot as plt
 import requests
 
 # Connect to src modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 try:
-    from feature_engineering import smiles_to_mol, compute_descriptors, compute_morgan_fingerprint
+    from feature_engineering import compute_descriptors, smiles_to_mol
+    from pipeline_utils import (
+        DEFAULT_HAZARD_THRESHOLD,
+        DEFAULT_SAFE_THRESHOLD,
+        load_model_artifact,
+        load_priority_toxin_dict,
+        lookup_priority_toxin,
+        predict_with_model,
+    )
 except ImportError:
-    st.error("❌ Critical Error: Could not find `src/feature_engineering.py`. Run from project root.")
+    st.error("❌ Critical Error: Could not import the shared pipeline modules. Run from project root.")
     st.stop()
 
 # Graceful Degradation Imports
@@ -37,20 +44,24 @@ except ImportError:
     HAS_SHAP = False
 
 
-# ── Configuration ──────────────────────────────────────────────
-MODELS_DIR = os.path.join(os.path.dirname(__file__), "..", "models")
-TUNED_MODEL_PATH = os.path.join(MODELS_DIR, "tuned_xgboost_model.pkl")
-BASELINE_MODEL_PATH = os.path.join(MODELS_DIR, "baseline_best_model.pkl")
+@st.cache_resource(show_spinner=False)
+def load_toxin_dictionary():
+    """Load the offline priority toxin dictionary once per app process."""
+    return load_priority_toxin_dict()
+
 
 @st.cache_resource(show_spinner=False)
 def load_model_file_v3():
     """Load the trained model artifact safely."""
-    if os.path.exists(TUNED_MODEL_PATH):
-        return joblib.load(TUNED_MODEL_PATH), "Tuned XGBoost"
-    elif os.path.exists(BASELINE_MODEL_PATH):
-        return joblib.load(BASELINE_MODEL_PATH), "Baseline Model"
-    else:
+    artifact = load_model_artifact(prefer_best=True)
+    if artifact is None:
         return None, None
+    return artifact, artifact.get("display_name", "Model")
+
+
+def load_model_file():
+    """Backward-compatible loader name used by older scripts."""
+    return load_model_file_v3()
 
 def resolve_to_smiles(query):
     """
@@ -76,6 +87,7 @@ def resolve_to_smiles(query):
 def predict_and_explain(smiles_or_name, artifact):
     """Safely compute features, predict, and generate SHAP values."""
     resolved_name = None
+    toxin_dict = load_toxin_dictionary()
     
     # 1. First see if it's already a valid SMILES string
     mol = smiles_to_mol(smiles_or_name)
@@ -92,32 +104,32 @@ def predict_and_explain(smiles_or_name, artifact):
     if mol is None:
         return None, None, None, None, "Invalid SMILES string or Unknown Chemical Name. RDKit and PubChem could not parse it.", None
     
-    # ── HYBRID ALERT SYSTEM (AOT Knowledge Base) ─────────────────
-    # We maintain a Hardcoded Registry of known acute toxins that are 
-    # mathematically invisible to Tox21 models due to dataset scope limitations.
-    KNOWN_TOXINS = {
-        'C=O': 'Formaldehyde',
-        'CN=C=O': 'Methyl Isocyanate (MIC)',
-        'C#N': 'Hydrogen Cyanide',
-        'c1ccccc1': 'Benzene',
-        'O=C(Cl)Cl': 'Phosgene',
-        '[AsH3]': 'Arsine'
-    }
-    
-    # 1. Standardize the user's input so C=O matches O=C
-    canonical_smiles = Chem.MolToSmiles(mol)
-    
-    # 2. Hard Override Check
-    if canonical_smiles in KNOWN_TOXINS:
-        toxin_name = KNOWN_TOXINS[canonical_smiles]
+    # ── PRIORITY TOXIN DICTIONARY BYPASS (pre-ML) ────────────────
+    # Canonicalize the user's structure then do an exact dictionary match.
+    toxin_entry = lookup_priority_toxin(mol, toxin_dict)
+    if toxin_entry:
+        canonical_smiles = toxin_entry.get("canonical_smiles")
+        toxin_name = toxin_entry.get("name", "Unknown")
+        toxin_source = toxin_entry.get("source", "Priority Toxin Dictionary")
+        hazard_class = toxin_entry.get("hazard_class", "Priority Hazard")
+        extra = []
+        if toxin_entry.get("chembl_id"):
+            extra.append(f"ChEMBL: {toxin_entry.get('chembl_id')}")
+        extra_str = f" ({', '.join(extra)})" if extra else ""
         meta = {
             "risk_level": "CRITICAL HAZARD",
             "recommendation": "Reject (Lethal)",
             "confidence": "100% (Database Match)",
-            "top_features": f"Matched OSHA/EPA Priority Toxin: {toxin_name}",
+            "verdict": "CRITICAL HAZARD",
+            "top_features": f"Matched: {toxin_name} — {hazard_class} [{toxin_source}]{extra_str}",
             "is_hardcoded": True, # Flag so UI skips SHAP waterfall
             "resolved_name": resolved_name,
-            "input_smiles": input_smiles
+            "input_smiles": input_smiles,
+            "canonical_smiles": canonical_smiles,
+            "toxin_name": toxin_name,
+            "toxin_source": toxin_source,
+            "hazard_class": hazard_class,
+            "priority_dictionary_size": len(toxin_dict) if isinstance(toxin_dict, dict) else None,
         }
         # Compute basic descriptors so UI rendering doesn't break
         desc = compute_descriptors(mol) or {}
@@ -126,60 +138,28 @@ def predict_and_explain(smiles_or_name, artifact):
     
     # ── Standard ML Inference Pipeline ───────────────────────────
     try:
-        desc = compute_descriptors(mol)
-        fp = compute_morgan_fingerprint(mol, radius=2, n_bits=1024)
-        if desc is None or fp is None:
-            return None, None, None, None, "Failed to compute chemical features.", None
+        inference = predict_with_model(
+            mol,
+            artifact,
+            safe_threshold=DEFAULT_SAFE_THRESHOLD,
+            hazard_threshold=DEFAULT_HAZARD_THRESHOLD,
+        )
+        desc = inference["descriptors"]
+        probability = inference["probability"]
+        prediction = inference["prediction"]
+        feature_vector_scaled = inference["feature_vector"]
+        canonical_smiles = inference["canonical_smiles"]
     except Exception as e:
         return None, None, None, None, f"Feature extraction error: {str(e)}", None
-    
-    feature_names = artifact["feature_names"]
-    
-    # Safely build feature vector matching EXACTLY what the model expects
-    # The ZINC scaler only normalizes global physical properties (Continuous), 
-    # not the discrete Morgan Fingerprints (FP). We must partition them.
-    cont_features = []
-    fp_features = []
-    
-    for name in feature_names:
-        if name.startswith("FP_"):
-            try:
-                bit_idx = int(name.split("_")[1])
-                fp_features.append(fp[bit_idx] if bit_idx < len(fp) else 0.0)
-            except (ValueError, IndexError):
-                fp_features.append(0.0)
-        else:
-            cont_features.append(desc.get(name, 0.0))
-            
-    # Process continuous descriptors
-    cont_vector = np.array(cont_features).reshape(1, -1)
-    cont_vector = np.nan_to_num(cont_vector, nan=0, posinf=0, neginf=0)
-    
-    try:
-        import warnings
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            cont_vector_scaled = artifact["scaler"].transform(cont_vector)
-    except Exception as e:
-        return None, None, None, None, f"Data scaling error: {str(e)}", None
-        
-    fp_vector = np.array(fp_features).reshape(1, -1)
-    feature_vector_scaled = np.hstack([cont_vector_scaled, fp_vector])
-    
-    try:
-        model = artifact["model"]
-        probability = model.predict_proba(feature_vector_scaled)[0]
-        prob = probability[1]
-    except Exception as e:
-        return None, None, None, None, f"Model prediction error: {str(e)}", None
 
-    # We use a 38% threshold now that we removed the false-positive 
-    # boosting weights (improves precision over ZINC space).
-    STRICT_PROB_THRESHOLD = 0.38
-    prediction = 1 if prob >= STRICT_PROB_THRESHOLD else 0
+    feature_names = artifact["feature_names"]
+    prob = probability[1]
+    verdict = inference["verdict"]
+    safe_threshold = inference["safe_threshold"]
+    hazard_threshold = inference["hazard_threshold"]
 
     metadata = {
-        "risk_level": "N/A",
+        "risk_level": verdict,
         "recommendation": "N/A",
         "confidence": "N/A",
         "top_features": "N/A"
@@ -188,6 +168,7 @@ def predict_and_explain(smiles_or_name, artifact):
     shap_values = None
     if HAS_SHAP:
         try:
+            model = artifact["model"]
             explainer = shap.TreeExplainer(model)
             shaps = explainer(feature_vector_scaled)
             if len(shaps.shape) == 3:
@@ -212,14 +193,14 @@ def predict_and_explain(smiles_or_name, artifact):
             
             
     # Calculate detailed metadata fields
-    if prob < 0.30:
-        metadata["risk_level"] = "Low"
+    if verdict == "SAFE":
+        metadata["risk_level"] = "SAFE"
         metadata["recommendation"] = "Proceed"
-    elif prob < STRICT_PROB_THRESHOLD:
-        metadata["risk_level"] = "Medium"
+    elif verdict == "UNCERTAIN":
+        metadata["risk_level"] = "UNCERTAIN"
         metadata["recommendation"] = "Review carefully"
     else:
-        metadata["risk_level"] = "High"
+        metadata["risk_level"] = "CRITICAL HAZARD"
         metadata["recommendation"] = "Reject / High Risk"
         
     if prob >= 0.70 or prob <= 0.20:
@@ -232,6 +213,10 @@ def predict_and_explain(smiles_or_name, artifact):
     # Append the resolved name and exact SMILES to pass to the UI
     metadata["resolved_name"] = resolved_name
     metadata["input_smiles"] = input_smiles
+    metadata["canonical_smiles"] = canonical_smiles
+    metadata["verdict"] = verdict
+    metadata["safe_threshold"] = safe_threshold
+    metadata["hazard_threshold"] = hazard_threshold
             
     return prediction, probability, desc, shap_values, None, metadata
 
@@ -271,6 +256,8 @@ with st.sidebar:
     st.title("🧬 ToxPredict")
     st.markdown("Early-stage drug toxicity prediction tool built for the Hackathon.")
     st.markdown("---")
+    toxin_dict = load_toxin_dictionary()
+    st.caption(f"📋 Priority Dictionary: **{len(toxin_dict):,}** compounds" if isinstance(toxin_dict, dict) else "📋 Priority Dictionary: unavailable")
     
     st.markdown("### 📋 Try an Example")
     examples = {
@@ -303,7 +290,12 @@ with st.expander("⚠️ Model Scope & Limitations"):
 
     **What this model does NOT measure:** Acute poisoning, respiratory toxicity, organ damage, or carcinogenicity via mechanisms not covered by the 12 Tox21 assays. For example, Formaldehyde is a known carcinogen, but it does not trigger any of the 12 Tox21 pathways, so our model (correctly per the training data) labels it as non-toxic.
 
-    **Bottom line:** A "Non-toxic" prediction means the molecule is unlikely to disrupt these specific biological pathways, NOT that it's universally safe.
+    **Bottom line:** The app now returns a three-way verdict:
+    - **SAFE**: low predicted risk for the Tox21 endpoints
+    - **UNCERTAIN**: the model is not confident enough for a hard call
+    - **CRITICAL HAZARD**: high-confidence toxicity signal or a priority-dictionary match
+
+    A "SAFE" prediction means the molecule is unlikely to disrupt these specific biological pathways, NOT that it's universally safe.
     """)
 
 if artifact is None:
@@ -344,9 +336,9 @@ with tab1:
             with col_a:
                 if meta.get("resolved_name"):
                     st.markdown(f"**Chemical Name:** `{meta['resolved_name']}`")
-                st.markdown(f"**Canonical SMILES:** `{meta.get('input_smiles', smiles_input)}`")
+                st.markdown(f"**Canonical SMILES:** `{meta.get('canonical_smiles', meta.get('input_smiles', smiles_input))}`")
                 st.markdown(f"**Validity Check:** Valid ✅")
-                st.markdown(f"**Predicted Label:** {'**TOXIC** ⚠️' if prediction == 1 else '**Non-Toxic** ✅'}")
+                st.markdown(f"**Verdict:** **{meta.get('verdict', 'UNCERTAIN')}**")
                 st.markdown(f"**Toxicity Probability:** {probability[1]*100:.1f}%")
                 
             with col_b:
@@ -363,10 +355,20 @@ with tab1:
             toxic_prob = probability[1] * 100
             
             with col1:
+                verdict_label = meta.get("verdict", "UNCERTAIN")
+                if verdict_label == "CRITICAL HAZARD":
+                    card_label = "⚠️ CRITICAL HAZARD"
+                    card_color = "#FF4B4B"
+                elif verdict_label == "UNCERTAIN":
+                    card_label = "⚠️ UNCERTAIN"
+                    card_color = "#FFB300"
+                else:
+                    card_label = "✅ SAFE"
+                    card_color = "#00CC96"
                 st.markdown(f"""
                 <div class="metric-card">
-                    <h3 style="color: {'#FF4B4B' if prediction == 1 else '#00CC96'}; margin:0;">
-                        {'⚠️ TOXIC' if prediction == 1 else '✅ SAFE'}
+                    <h3 style="color: {card_color}; margin:0;">
+                        {card_label}
                     </h3>
                     <p style="font-size:14px; margin:0;">Model Verdict</p>
                 </div>
@@ -396,10 +398,11 @@ with tab1:
             with bottom_left:
                 st.markdown("#### Molecular Structure")
                 if HAS_RDKIT:
-                    mol = Chem.MolFromSmiles(smiles_input)
+                    structure_smiles = meta.get("canonical_smiles") or meta.get("input_smiles", smiles_input)
+                    mol = Chem.MolFromSmiles(structure_smiles)
                     if mol:
                         img = Draw.MolToImage(mol, size=(300, 300), fitImage=True)
-                        st.image(img, use_container_width=True)
+                        st.image(img, width="stretch")
             
                 st.markdown("#### Properties")
                 props = {
@@ -408,23 +411,23 @@ with tab1:
                     "H-Donors": descriptors.get("NumHDonors", 0),
                     "H-Acceptors": descriptors.get("NumHAcceptors", 0)
                 }
-                st.dataframe(pd.DataFrame(list(props.items()), columns=["Property", "Value"]), hide_index=True, use_container_width=True)
+                st.dataframe(pd.DataFrame(list(props.items()), columns=["Property", "Value"]), hide_index=True, width="stretch")
 
             with bottom_right:
                 st.markdown("#### AI Transparency (Why?)")
                 
                 if meta.get("is_hardcoded", False):
                     st.error("### 🛑 ML BYPASS TRIGGERED")
-                    st.markdown(f"**Chemical identity verified against Ahead-Of-Time (AOT) Known Toxins Registry.**")
-                    st.markdown(f"Because this is an actively tracked priority toxin, mathematical ML screening (Tox21) has been bypassed. The compound is categorically **Lethal / Critical Hazard**.")
+                    st.markdown(f"**Chemical identity verified against the Priority Toxin Dictionary.**")
+                    st.markdown(f"Because this is an actively tracked priority toxin, mathematical ML screening (Tox21) has been bypassed. The compound is categorically **CRITICAL HAZARD**.")
                 else:
                     st.write("The chart below (SHAP Waterfall) explains the math behind the prediction. **Red bars** represent molecular subsystems that push the drug toward toxicity. **Blue bars** pull it toward safety.")
-                
+                    
                     if shap_values is not None:
                         fig, ax = plt.subplots(figsize=(6, 4))
                         # Generate clean SHAP plot
                         shap.plots.waterfall(shap_values, max_display=10, show=False)
-                        st.pyplot(fig, use_container_width=True)
+                        st.pyplot(fig, width="stretch")
                         plt.close(fig)
                     else:
                         st.info("SHAP Visualization not available for this molecule.")
@@ -443,11 +446,14 @@ with tab2:
     if os.path.exists(zinc_results_path):
         with st.expander("📊 View Pre-Computed ZINC-250k Screening Results (1,000 molecules)", expanded=False):
             zinc_df = pd.read_csv(zinc_results_path)
-            n_toxic = (zinc_df["verdict"] == "TOXIC").sum()
+            n_hazard = (zinc_df["verdict"] == "CRITICAL HAZARD").sum()
+            n_safe = (zinc_df["verdict"] == "SAFE").sum()
+            n_uncertain = (zinc_df["verdict"] == "UNCERTAIN").sum()
             col_a, col_b = st.columns(2)
             col_a.metric("Molecules Screened", f"{len(zinc_df):,}")
-            col_b.metric("Predicted Toxic", f"{n_toxic} ({n_toxic/len(zinc_df)*100:.1f}%)")
-            st.dataframe(zinc_df.sort_values("toxicity_prob", ascending=False), use_container_width=True)
+            col_b.metric("Predicted CRITICAL HAZARD", f"{n_hazard} ({n_hazard/len(zinc_df)*100:.1f}%)")
+            st.caption(f"SAFE: {n_safe:,} | UNCERTAIN: {n_uncertain:,}")
+            st.dataframe(zinc_df.sort_values("toxicity_prob", ascending=False), width="stretch")
 
     uploaded_file = st.file_uploader("Upload CSV", type=["csv"])
     if uploaded_file is not None:
@@ -497,13 +503,12 @@ with tab2:
                                 "Recommended Action": "Failed to Parse"
                             })
                         else:
-                            verdict = "Toxic" if pred == 1 else "Non-toxic"
                             results.append({
                                 "Timestamp": timestamp,
                                 "Molecule_ID": mol_id,
                                 "SMILES": smi,
                                 "Valid": "Yes",
-                                "Prediction Label": verdict,
+                                "Prediction Label": meta["verdict"],
                                 "Toxicity Score": round(prob[1], 4),
                                 "Risk Level": meta["risk_level"],
                                 "Confidence": meta["confidence"],
@@ -513,7 +518,7 @@ with tab2:
                     
                     results_df = pd.DataFrame(results)
                     st.success("Batch Analysis Complete!")
-                    st.dataframe(results_df, use_container_width=True)
+                    st.dataframe(results_df, width="stretch")
                     
                     # Provide download button
                     csv_export = results_df.to_csv(index=False).encode('utf-8')

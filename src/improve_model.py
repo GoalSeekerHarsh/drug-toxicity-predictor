@@ -4,15 +4,16 @@ improve_model.py – Train an optimized XGBoost model with Hyperparameter Tuning
 This script improves upon the baseline models by:
   1. Using XGBoost, an advanced tree-based algorithm that handles tabular data exceptionally well.
   2. Introducing simple Hyperparameter Tuning using Grid Search to find the best settings.
-  3. Addressing class imbalance heavily using 'scale_pos_weight'.
+  3. Keeping Tox21 dominant while down-weighting auxiliary ChEMBL rows.
+  4. Saving a consistent artifact + metrics payload for downstream inference and explainability.
 
 Key Hyperparameters Explained:
   - max_depth: How deep each tree can grow. Deeper trees learn more complex patterns but risk overfitting.
              (We try 3, 5, 7. 3 is conservative; 7 is complex).
   - learning_rate: How much each new tree corrects the mistakes of previous trees.
                  (Lower = slower learning but often better generalization. We try 0.01, 0.1).
-  - scale_pos_weight: Crucial for imbalanced data! It tells the model to penalize mistakes
-                      on the rare 'toxic' class more heavily than the common 'non-toxic' class.
+  - sample_weight: ChEMBL rows receive a lighter weight than Tox21 rows so the auxiliary
+                   withdrawn-drug signal helps the model without dominating it.
 
 Usage:
     python src/improve_model.py
@@ -24,7 +25,6 @@ import pandas as pd
 import numpy as np
 import xgboost as xgb
 from sklearn.model_selection import train_test_split, GridSearchCV, StratifiedKFold
-from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import (
     roc_auc_score,
     f1_score,
@@ -33,79 +33,64 @@ from sklearn.metrics import (
     confusion_matrix
 )
 
+try:
+    from .pipeline_utils import (
+        build_sample_weights,
+        compute_metrics_dict,
+        get_feature_partitions,
+        resolve_label_column,
+        save_metrics_report,
+        stratified_train_val_test_split,
+        transform_feature_frame,
+    )
+except ImportError:
+    from pipeline_utils import (  # type: ignore
+        build_sample_weights,
+        compute_metrics_dict,
+        get_feature_partitions,
+        resolve_label_column,
+        save_metrics_report,
+        stratified_train_val_test_split,
+        transform_feature_frame,
+    )
+
 # ── Configuration ──────────────────────────────────────────────
 PROCESSED_DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "processed")
 MODELS_DIR = os.path.join(os.path.dirname(__file__), "..", "models")
-
-def stratified_train_val_test_split(X, y, extra_arrays=None, train_ratio=0.70, val_ratio=0.15, test_ratio=0.15, random_state=42):
-    """Stratified split into train/val/test, optionally splitting extra aligned arrays too."""
-    if extra_arrays is None:
-        extra_arrays = []
-
-    assert abs(train_ratio + val_ratio + test_ratio - 1.0) < 1e-6, "Ratios must sum to 1.0"
-
-    split_args = [X, y, *extra_arrays]
-    temp = train_test_split(
-        *split_args,
-        test_size=test_ratio,
-        random_state=random_state,
-        stratify=y
-    )
-    # temp layout: X_temp, X_test, y_temp, y_test, extras_temp..., extras_test...
-    X_temp, X_test = temp[0], temp[1]
-    y_temp, y_test = temp[2], temp[3]
-    extras_temp = []
-    extras_test = []
-    if extra_arrays:
-        extras_pairs = temp[4:]
-        extras_temp = extras_pairs[0::2]
-        extras_test = extras_pairs[1::2]
-
-    val_fraction = val_ratio / (train_ratio + val_ratio)
-    split_args2 = [X_temp, y_temp, *extras_temp]
-    temp2 = train_test_split(
-        *split_args2,
-        test_size=val_fraction,
-        random_state=random_state,
-        stratify=y_temp
-    )
-    X_train, X_val = temp2[0], temp2[1]
-    y_train, y_val = temp2[2], temp2[3]
-    extras_train = []
-    extras_val = []
-    if extras_temp:
-        extras_pairs2 = temp2[4:]
-        extras_train = extras_pairs2[0::2]
-        extras_val = extras_pairs2[1::2]
-
-    return (X_train, X_val, X_test, y_train, y_val, y_test, extras_train, extras_val, extras_test)
 
 
 # ══════════════════════════════════════════════════════════════
 #  STEP 1: Load and Prep Data
 # ══════════════════════════════════════════════════════════════
 
-def prepare_data(random_state=42, chembl_weight=0.5):
-    """Load, stratified split (train/val/test), compute weights, and scale the data."""
+def prepare_data(random_state=42, chembl_weight=0.5, include_chembl=True):
+    """Load, stratified split (train/val/test), compute weights, and scale the data.
+
+    Args:
+        random_state: Reproducibility seed.
+        chembl_weight: Weight applied to rows where labels['source'] == 'chembl'.
+        include_chembl: If False, drops all ChEMBL rows (source!='tox21').
+    """
     print("Loading data...")
     features = pd.read_csv(os.path.join(PROCESSED_DATA_DIR, "features.csv"))
     labels = pd.read_csv(os.path.join(PROCESSED_DATA_DIR, "labels.csv"))
 
-    label_col = "toxicity" if "toxicity" in labels.columns else [c for c in labels.columns if c != "smiles"][0]
-    X = features.values
-    y = labels[label_col].values
+    label_col = resolve_label_column(labels)
     feature_names = features.columns.tolist()
 
-    # Sample weights (Tox21 dominant; ChEMBL auxiliary)
-    if "source" in labels.columns:
-        src = labels["source"].astype(str).values
-        w = np.where(src == "chembl", float(chembl_weight), 1.0).astype(float)
-    else:
-        w = np.ones_like(y, dtype=float)
+    # Optionally remove auxiliary ChEMBL rows for an ablation experiment
+    if (not include_chembl) and ("source" in labels.columns):
+        keep_mask = labels["source"].astype(str).values == "tox21"
+        features = features.loc[keep_mask].reset_index(drop=True)
+        labels = labels.loc[keep_mask].reset_index(drop=True)
+        print(f"Ablation: include_chembl=False → using {len(labels)} Tox21-only samples")
+
+    y = labels[label_col].values
+    w = build_sample_weights(labels, chembl_weight=chembl_weight)
 
     # Stratified train/val/test split
-    X_train, X_val, X_test, y_train, y_val, y_test, (w_train,), (w_val,), (w_test,) = stratified_train_val_test_split(
-        X, y, extra_arrays=[w], train_ratio=0.70, val_ratio=0.15, test_ratio=0.15, random_state=random_state
+    X_train_df, X_val_df, X_test_df, y_train, y_val, y_test, (w_train,), (w_val,), (w_test,) = stratified_train_val_test_split(
+        features, y, extra_arrays=[w], train_ratio=0.70, val_ratio=0.15, test_ratio=0.15, random_state=random_state
     )
 
     print(f"Dataset split: {len(y_train)} train | {len(y_val)} val | {len(y_test)} test")
@@ -118,34 +103,26 @@ def prepare_data(random_state=42, chembl_weight=0.5):
         
     zinc_artifact = joblib.load(zinc_scaler_path)
     scaler = zinc_artifact["scaler"]
-    continuous_cols = zinc_artifact["feature_names"]
-    
-    # Identify Morgan Fingerprints (which are binary 0/1 and should NOT be scaled)
-    fp_cols = [col for col in feature_names if col.startswith("FP_")]
-    
-    # Convert string names to integer indices because X_train is a numpy array
-    cont_indices = [feature_names.index(col) for col in continuous_cols]
-    fp_indices = [feature_names.index(col) for col in fp_cols]
-    
-    # Transform continuous subset
-    X_train_cont_scaled = scaler.transform(X_train[:, cont_indices])
-    X_val_cont_scaled = scaler.transform(X_val[:, cont_indices])
-    X_test_cont_scaled = scaler.transform(X_test[:, cont_indices])
-    
-    # Convert FPs to numpy arrays
-    X_train_fp = X_train[:, fp_indices]
-    X_val_fp = X_val[:, fp_indices]
-    X_test_fp = X_test[:, fp_indices]
-    
-    # Re-combine into massive aligned arrays
-    X_train_scaled = np.hstack([X_train_cont_scaled, X_train_fp])
-    X_val_scaled = np.hstack([X_val_cont_scaled, X_val_fp])
-    X_test_scaled = np.hstack([X_test_cont_scaled, X_test_fp])
-    
-    # Because we hstacked continuous first, then FP, the final feature_names list must mirror this exact order
+    transform_artifact = {"feature_names": feature_names, "scaler": scaler}
+    X_train_scaled = transform_feature_frame(X_train_df, transform_artifact)
+    X_val_scaled = transform_feature_frame(X_val_df, transform_artifact)
+    X_test_scaled = transform_feature_frame(X_test_df, transform_artifact)
+    continuous_cols, fp_cols = get_feature_partitions(feature_names, scaler=scaler)
     final_feature_names = continuous_cols + fp_cols
     
-    return X_train_scaled, X_val_scaled, X_test_scaled, y_train, y_val, y_test, w_train, w_val, w_test, scaler, final_feature_names
+    return (
+        X_train_scaled,
+        X_val_scaled,
+        X_test_scaled,
+        y_train,
+        y_val,
+        y_test,
+        w_train,
+        w_val,
+        w_test,
+        scaler,
+        final_feature_names,
+    )
 
 
 # ══════════════════════════════════════════════════════════════
@@ -163,8 +140,9 @@ def tune_xgboost(X_train, y_train, sample_weight=None, random_state=42):
     print("\nStarting Hyperparameter Tuning for XGBoost...")
     print("This may take a few minutes as we test multiple parameter combinations.")
     
-    # For Precision-First: we drop the scale_pos_weight entirely. We want the model
-    # to naturally favor the vast majority of safe compounds.
+    # For Precision-First: we intentionally keep scale_pos_weight neutral.
+    # The objective is to reduce false positives while relying on source-aware
+    # sample weights for the noisier ChEMBL supplement.
     sp_weight = 1.0
     
     print(f"Set scale_pos_weight to {sp_weight:.2f} (Strict Precision over Recall).")
@@ -175,7 +153,8 @@ def tune_xgboost(X_train, y_train, sample_weight=None, random_state=42):
         eval_metric="logloss",
         use_label_encoder=False,
         scale_pos_weight=sp_weight, # Fix the imbalance weight for all tests
-        n_estimators=100            # Fixed number of trees to speed up tuning
+        n_estimators=100,           # Fixed number of trees to speed up tuning
+        n_jobs=1                    # Safe in restricted environments
     )
 
     # 2. Define the exact parameters we want to test
@@ -198,7 +177,7 @@ def tune_xgboost(X_train, y_train, sample_weight=None, random_state=42):
         scoring='precision',
         cv=cv,
         verbose=1,
-        n_jobs=-1 # Use all cores
+        n_jobs=1 # Avoid loky semaphore issues in restricted environments
     )
 
     fit_kwargs = {}
@@ -219,22 +198,35 @@ def tune_xgboost(X_train, y_train, sample_weight=None, random_state=42):
 #  STEP 3: Evaluate and Save
 # ══════════════════════════════════════════════════════════════
 
-def evaluate_and_save(model, X_test, y_test, scaler, feature_names):
-    """Evaluate the tuned model on the unseen test set and save it."""
+def evaluate_and_save(
+    model,
+    X_test,
+    y_test,
+    scaler,
+    feature_names,
+    artifact_name="tuned_xgboost_model.pkl",
+    report_name="tuned_xgboost_metrics.json",
+    extra_metadata=None,
+    update_best_model=True,
+):
+    """Evaluate model on test set, save model artifact + metrics report."""
     
     y_pred = model.predict(X_test)
     y_proba = model.predict_proba(X_test)[:, 1]
 
-    roc_auc = roc_auc_score(y_test, y_proba)
-    f1 = f1_score(y_test, y_pred)
-    recall = recall_score(y_test, y_pred)
-    precision = precision_score(y_test, y_pred)
-    cm = confusion_matrix(y_test, y_pred)
+    metrics = compute_metrics_dict(y_test, y_pred, y_proba)
+    roc_auc = metrics["roc_auc"]
+    pr_auc = metrics["pr_auc"]
+    f1 = metrics["f1"]
+    recall = metrics["recall"]
+    precision = metrics["precision"]
+    cm = np.array(metrics["confusion_matrix"])
 
     print(f"\n{'='*50}")
     print(f" 📊 Final Test Set Evaluation (Precision Tuned XGBoost)")
     print(f"{'='*50}")
     print(f" ROC-AUC:   {roc_auc:.4f}")
+    print(f" PR-AUC:    {pr_auc:.4f}")
     print(f" Precision: {precision:.4f}  <-- THE MOST IMPORTANT METRIC NOW")
     print(f" Recall:    {recall:.4f}")
     print(f" F1 Score:  {f1:.4f}")
@@ -246,7 +238,7 @@ def evaluate_and_save(model, X_test, y_test, scaler, feature_names):
 
     # Save
     os.makedirs(MODELS_DIR, exist_ok=True)
-    filepath = os.path.join(MODELS_DIR, "tuned_xgboost_model.pkl")
+    filepath = os.path.join(MODELS_DIR, artifact_name)
     
     artifact = {
         "model": model,
@@ -257,6 +249,16 @@ def evaluate_and_save(model, X_test, y_test, scaler, feature_names):
     joblib.dump(artifact, filepath)
     print(f"\n💾 Saved tuned model to {filepath}")
 
+    # Also write a canonical "best_model.pkl" pointer artifact for downstream scripts
+    if update_best_model:
+        best_path = os.path.join(MODELS_DIR, "best_model.pkl")
+        joblib.dump(artifact, best_path)
+        print(f"💾 Updated best model at {best_path}")
+
+    report_path = save_metrics_report(report_name, metrics, extra_metadata=extra_metadata)
+    print(f"🧾 Saved metrics report to {report_path}")
+
+    return metrics
 
 # ══════════════════════════════════════════════════════════════
 #  MAIN EXECUTION
@@ -282,6 +284,15 @@ if __name__ == "__main__":
         pass
 
     # Evaluate final model on the test set
-    evaluate_and_save(best_xgb_model, X_test_scaled, y_test, scaler, feature_names)
+    evaluate_and_save(
+        best_xgb_model,
+        X_test_scaled,
+        y_test,
+        scaler,
+        feature_names,
+        artifact_name="tuned_xgboost_model.pkl",
+        report_name="tuned_xgboost_metrics.json",
+        extra_metadata={"include_chembl": True},
+    )
     
     print("\nPipeline finished successfully. 🎉")

@@ -18,6 +18,11 @@ import seaborn as sns
 import shap
 import joblib
 
+try:
+    from .pipeline_utils import load_model_artifact as load_runtime_artifact, transform_feature_frame
+except ImportError:
+    from pipeline_utils import load_model_artifact as load_runtime_artifact, transform_feature_frame  # type: ignore
+
 
 # ── Configuration ──────────────────────────────────────────────
 MODELS_DIR = os.path.join(os.path.dirname(__file__), "..", "models")
@@ -27,9 +32,23 @@ REPORTS_DIR = os.path.join(os.path.dirname(__file__), "..", "reports")
 
 def load_model_artifact(filename="best_model.pkl"):
     """Load saved model, scaler, and feature names."""
+    artifact = load_model_artifact_from_disk(filename)
+    return artifact["model"], artifact["scaler"], artifact["feature_names"], artifact
+
+
+def load_model_artifact_from_disk(filename="best_model.pkl"):
+    """Load a specific artifact by filename, falling back to the preferred runtime loader."""
     filepath = os.path.join(MODELS_DIR, filename)
-    artifact = joblib.load(filepath)
-    return artifact["model"], artifact["scaler"], artifact["feature_names"]
+    if os.path.exists(filepath):
+        artifact = joblib.load(filepath)
+        artifact = dict(artifact)
+        artifact["artifact_path"] = filepath
+        return artifact
+
+    artifact = load_runtime_artifact(prefer_best=True)
+    if artifact is None:
+        raise FileNotFoundError(f"Model artifact not found at {filepath}")
+    return artifact
 
 
 def compute_shap_values(model, X_sample, feature_names):
@@ -105,11 +124,11 @@ def get_top_features(shap_values, feature_names, top_n=10):
 
 if __name__ == "__main__":
     # Load model and data
-    model, scaler, feature_names = load_model_artifact()
+    model, scaler, feature_names, artifact = load_model_artifact()
     features = pd.read_csv(os.path.join(PROCESSED_DATA_DIR, "features.csv"))
     
     # Scale and sample for SHAP (use 500 samples for speed)
-    X = scaler.transform(features.values)
+    X = transform_feature_frame(features, artifact)
     sample_size = min(500, len(X))
     np.random.seed(42)
     sample_idx = np.random.choice(len(X), sample_size, replace=False)

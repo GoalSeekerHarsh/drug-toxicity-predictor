@@ -41,7 +41,6 @@ Usage:
 import os
 import joblib
 import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import (
@@ -54,12 +53,16 @@ from sklearn.metrics import (
     recall_score,
     confusion_matrix
 )
-from sklearn.model_selection import train_test_split
 
 # ── Configuration ──────────────────────────────────────────────
 PROCESSED_DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "processed")
 MODELS_DIR = os.path.join(os.path.dirname(__file__), "..", "models")
 REPORTS_DIR = os.path.join(os.path.dirname(__file__), "..", "reports")
+
+try:
+    from .pipeline_utils import resolve_label_column, stratified_train_val_test_split, transform_feature_frame
+except ImportError:
+    from pipeline_utils import resolve_label_column, stratified_train_val_test_split, transform_feature_frame  # type: ignore
 
 def load_test_data():
     """Load data and recreate the exact test set for evaluation."""
@@ -67,13 +70,11 @@ def load_test_data():
     features = pd.read_csv(os.path.join(PROCESSED_DATA_DIR, "features.csv"))
     labels = pd.read_csv(os.path.join(PROCESSED_DATA_DIR, "labels.csv"))
 
-    label_col = [c for c in labels.columns if c != "smiles"][0]
-    X = features.values
+    label_col = resolve_label_column(labels)
     y = labels[label_col].values
 
-    # Must match the split used during training (test_size=0.2, random_state=42, stratify=y)
-    _, X_test, _, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42, stratify=y
+    _, _, X_test, _, _, y_test, _, _, _ = stratified_train_val_test_split(
+        features, y, train_ratio=0.70, val_ratio=0.15, test_ratio=0.15, random_state=42
     )
     return X_test, y_test
 
@@ -85,15 +86,16 @@ def load_model_pipeline(model_filename="baseline_best_model.pkl"):
     
     artifact = joblib.load(filepath)
     model_name = artifact.get("model_name", model_filename.split('.')[0].replace('_', ' ').title())
-    return artifact["model"], artifact["scaler"], model_name
+    return artifact["model"], artifact["scaler"], model_name, artifact["feature_names"]
 
-def evaluate_and_plot(model, scaler, X_test, y_test, model_name):
+def evaluate_and_plot(model, scaler, X_test, y_test, model_name, feature_names):
     """Generate all critical metrics and visual plots."""
     print(f"\nEvaluating: {model_name}")
     print("="*60)
     
     # 1. Prepare Data & Predict
-    X_test_scaled = scaler.transform(X_test)
+    artifact = {"model": model, "scaler": scaler, "feature_names": feature_names}
+    X_test_scaled = transform_feature_frame(X_test, artifact)
     y_pred = model.predict(X_test_scaled)
     y_proba = model.predict_proba(X_test_scaled)[:, 1] # Probability of class 1
 
@@ -173,7 +175,7 @@ if __name__ == "__main__":
         for model_path in model_files:
             filename = os.path.basename(model_path)
             # Evaluate each found model
-            model, scaler, model_name = load_model_pipeline(filename)
-            evaluate_and_plot(model, scaler, X_test, y_test, model_name)
+            model, scaler, model_name, feature_names = load_model_pipeline(filename)
+            evaluate_and_plot(model, scaler, X_test, y_test, model_name, feature_names)
     
     print("\n✅ Evaluation complete.")
