@@ -37,27 +37,78 @@ from sklearn.metrics import (
 PROCESSED_DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "processed")
 MODELS_DIR = os.path.join(os.path.dirname(__file__), "..", "models")
 
+def stratified_train_val_test_split(X, y, extra_arrays=None, train_ratio=0.70, val_ratio=0.15, test_ratio=0.15, random_state=42):
+    """Stratified split into train/val/test, optionally splitting extra aligned arrays too."""
+    if extra_arrays is None:
+        extra_arrays = []
+
+    assert abs(train_ratio + val_ratio + test_ratio - 1.0) < 1e-6, "Ratios must sum to 1.0"
+
+    split_args = [X, y, *extra_arrays]
+    temp = train_test_split(
+        *split_args,
+        test_size=test_ratio,
+        random_state=random_state,
+        stratify=y
+    )
+    # temp layout: X_temp, X_test, y_temp, y_test, extras_temp..., extras_test...
+    X_temp, X_test = temp[0], temp[1]
+    y_temp, y_test = temp[2], temp[3]
+    extras_temp = []
+    extras_test = []
+    if extra_arrays:
+        extras_pairs = temp[4:]
+        extras_temp = extras_pairs[0::2]
+        extras_test = extras_pairs[1::2]
+
+    val_fraction = val_ratio / (train_ratio + val_ratio)
+    split_args2 = [X_temp, y_temp, *extras_temp]
+    temp2 = train_test_split(
+        *split_args2,
+        test_size=val_fraction,
+        random_state=random_state,
+        stratify=y_temp
+    )
+    X_train, X_val = temp2[0], temp2[1]
+    y_train, y_val = temp2[2], temp2[3]
+    extras_train = []
+    extras_val = []
+    if extras_temp:
+        extras_pairs2 = temp2[4:]
+        extras_train = extras_pairs2[0::2]
+        extras_val = extras_pairs2[1::2]
+
+    return (X_train, X_val, X_test, y_train, y_val, y_test, extras_train, extras_val, extras_test)
+
+
 # ══════════════════════════════════════════════════════════════
 #  STEP 1: Load and Prep Data
 # ══════════════════════════════════════════════════════════════
 
-def prepare_data(test_size=0.2, random_state=42):
-    """Load, split (stratified), and scale the data."""
+def prepare_data(random_state=42, chembl_weight=0.5):
+    """Load, stratified split (train/val/test), compute weights, and scale the data."""
     print("Loading data...")
     features = pd.read_csv(os.path.join(PROCESSED_DATA_DIR, "features.csv"))
     labels = pd.read_csv(os.path.join(PROCESSED_DATA_DIR, "labels.csv"))
 
-    label_col = [c for c in labels.columns if c != "smiles"][0]
+    label_col = "toxicity" if "toxicity" in labels.columns else [c for c in labels.columns if c != "smiles"][0]
     X = features.values
     y = labels[label_col].values
     feature_names = features.columns.tolist()
 
-    # Stratified Split
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=test_size, random_state=random_state, stratify=y
+    # Sample weights (Tox21 dominant; ChEMBL auxiliary)
+    if "source" in labels.columns:
+        src = labels["source"].astype(str).values
+        w = np.where(src == "chembl", float(chembl_weight), 1.0).astype(float)
+    else:
+        w = np.ones_like(y, dtype=float)
+
+    # Stratified train/val/test split
+    X_train, X_val, X_test, y_train, y_val, y_test, (w_train,), (w_val,), (w_test,) = stratified_train_val_test_split(
+        X, y, extra_arrays=[w], train_ratio=0.70, val_ratio=0.15, test_ratio=0.15, random_state=random_state
     )
 
-    print(f"Dataset split: {len(y_train)} train | {len(y_test)} test")
+    print(f"Dataset split: {len(y_train)} train | {len(y_val)} val | {len(y_test)} test")
     
     # Scale Features via Unsupervised ZINC Chemical Space Baseline
     print("Normalizing features via ZINC-250k Global Chemical Space baseline...")
@@ -78,27 +129,30 @@ def prepare_data(test_size=0.2, random_state=42):
     
     # Transform continuous subset
     X_train_cont_scaled = scaler.transform(X_train[:, cont_indices])
+    X_val_cont_scaled = scaler.transform(X_val[:, cont_indices])
     X_test_cont_scaled = scaler.transform(X_test[:, cont_indices])
     
     # Convert FPs to numpy arrays
     X_train_fp = X_train[:, fp_indices]
+    X_val_fp = X_val[:, fp_indices]
     X_test_fp = X_test[:, fp_indices]
     
     # Re-combine into massive aligned arrays
     X_train_scaled = np.hstack([X_train_cont_scaled, X_train_fp])
+    X_val_scaled = np.hstack([X_val_cont_scaled, X_val_fp])
     X_test_scaled = np.hstack([X_test_cont_scaled, X_test_fp])
     
     # Because we hstacked continuous first, then FP, the final feature_names list must mirror this exact order
     final_feature_names = continuous_cols + fp_cols
     
-    return X_train_scaled, X_test_scaled, y_train, y_test, scaler, final_feature_names
+    return X_train_scaled, X_val_scaled, X_test_scaled, y_train, y_val, y_test, w_train, w_val, w_test, scaler, final_feature_names
 
 
 # ══════════════════════════════════════════════════════════════
 #  STEP 2: Hyperparameter Tuning (Grid Search)
 # ══════════════════════════════════════════════════════════════
 
-def tune_xgboost(X_train, y_train, random_state=42):
+def tune_xgboost(X_train, y_train, sample_weight=None, random_state=42):
     """
     Find the best XGBoost parameters using GridSearchCV.
     
@@ -147,7 +201,10 @@ def tune_xgboost(X_train, y_train, random_state=42):
         n_jobs=-1 # Use all cores
     )
 
-    grid_search.fit(X_train, y_train)
+    fit_kwargs = {}
+    if sample_weight is not None:
+        fit_kwargs["sample_weight"] = sample_weight
+    grid_search.fit(X_train, y_train, **fit_kwargs)
     
     print("\n" + "="*50)
     print(" Tuning Complete!")
@@ -208,11 +265,22 @@ def evaluate_and_save(model, X_test, y_test, scaler, feature_names):
 if __name__ == "__main__":
     print("\n🚀 Starting Tuned XGBoost Pipeline\n" + "-"*50)
     
-    X_train_scaled, X_test_scaled, y_train, y_test, scaler, feature_names = prepare_data()
+    X_train_scaled, X_val_scaled, X_test_scaled, y_train, y_val, y_test, w_train, w_val, w_test, scaler, feature_names = prepare_data()
     
     # Tune and get the best model
-    best_xgb_model = tune_xgboost(X_train_scaled, y_train)
+    best_xgb_model = tune_xgboost(X_train_scaled, y_train, sample_weight=w_train)
     
+    # Quick sanity check on validation before final test
+    try:
+        y_val_pred = best_xgb_model.predict(X_val_scaled)
+        y_val_proba = best_xgb_model.predict_proba(X_val_scaled)[:, 1]
+        val_precision = precision_score(y_val, y_val_pred)
+        val_recall = recall_score(y_val, y_val_pred)
+        val_roc = roc_auc_score(y_val, y_val_proba)
+        print(f"\nValidation: ROC-AUC={val_roc:.4f} | Precision={val_precision:.4f} | Recall={val_recall:.4f}")
+    except Exception:
+        pass
+
     # Evaluate final model on the test set
     evaluate_and_save(best_xgb_model, X_test_scaled, y_test, scaler, feature_names)
     

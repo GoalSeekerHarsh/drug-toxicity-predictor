@@ -25,6 +25,43 @@ import numpy as np
 RAW_DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "raw")
 PROCESSED_DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "processed")
 
+def canonicalize_smiles(smiles: str):
+    """Parse + canonicalize a SMILES string via RDKit.
+
+    Returns:
+        canonical_smiles (str) if valid, else None
+    """
+    if smiles is None or (isinstance(smiles, float) and np.isnan(smiles)):
+        return None
+    s = str(smiles).strip()
+    if not s:
+        return None
+    try:
+        from rdkit import Chem
+    except ImportError as e:
+        raise ImportError("RDKit is required for SMILES canonicalization. Install: pip install rdkit") from e
+
+    mol = Chem.MolFromSmiles(s)
+    if mol is None:
+        return None
+    return Chem.MolToSmiles(mol, canonical=True)
+
+
+def canonicalize_smiles_column(df, smiles_col="smiles", output_col="smiles"):
+    """Canonicalize a SMILES column in-place (by default, overwrites `smiles`)."""
+    before = len(df)
+    canon = df[smiles_col].apply(canonicalize_smiles)
+    valid_mask = canon.notna()
+    df2 = df.loc[valid_mask].copy()
+    df2[output_col] = canon.loc[valid_mask].values
+
+    print(f"\n{'=' * 60}")
+    print("  STEP X: Canonicalize SMILES (RDKit)")
+    print("=" * 60)
+    print(f"  Before: {before} → After: {len(df2)}")
+    print(f"  ❌ Dropped {before - len(df2)} rows that failed canonicalization")
+    return df2.reset_index(drop=True)
+
 
 # ══════════════════════════════════════════════════════════════
 #  STEP 1: Load the raw data
@@ -296,35 +333,117 @@ def save_cleaned(df, filename="tox21_cleaned.csv"):
 
 
 # ══════════════════════════════════════════════════════════════
-#  MAIN: Run all 6 steps in sequence
+#  STEP 7: Load ChEMBL Withdrawn Drugs (Auxiliary Toxic Samples)
+# ══════════════════════════════════════════════════════════════
+
+def load_chembl_withdrawn(filename="chembl_withdrawn.csv"):
+    """Load ChEMBL withdrawn drugs as supplementary toxic samples.
+
+    What this does:
+        - Reads the CSV produced by scripts/fetch_chembl_withdrawn.py
+        - Validates each SMILES via RDKit
+        - Assigns toxicity = 1 to every entry (they were withdrawn for safety)
+        - Adds a 'source' column = 'chembl' so we can apply lower sample weight
+          during model training
+
+    Returns:
+        DataFrame with columns [smiles, toxicity, source]
+        or None if the file doesn't exist
+    """
+    filepath = os.path.join(RAW_DATA_DIR, filename)
+    if not os.path.exists(filepath):
+        print(f"  ⚠️  ChEMBL file not found: {filepath}")
+        print(f"     Run `python scripts/fetch_chembl_withdrawn.py` first.")
+        return None
+
+    print(f"\n{'=' * 60}")
+    print("  STEP 7: Load ChEMBL Withdrawn Drugs")
+    print("=" * 60)
+
+    df = pd.read_csv(filepath)
+    print(f"  Loaded {len(df)} entries from {filepath}")
+
+    # Use canonical_smiles column
+    if "canonical_smiles" not in df.columns:
+        print("  ❌ Missing 'canonical_smiles' column")
+        return None
+
+    # Conservative label quality: keep only truly withdrawn compounds when flag exists
+    if "withdrawn_flag" in df.columns:
+        before_flag = len(df)
+        df = df[df["withdrawn_flag"].astype(str) == "1"].copy()
+        print(f"  Conservative filter: withdrawn_flag==1 → {len(df)} (dropped {before_flag - len(df)})")
+
+    # Canonicalize again (defensive) and drop invalid
+    df = df.dropna(subset=["canonical_smiles"]).copy()
+    df["smiles"] = df["canonical_smiles"].apply(canonicalize_smiles)
+    df = df.dropna(subset=["smiles"]).copy()
+
+    # Deduplicate on canonical SMILES
+    before_dupes = len(df)
+    df = df.drop_duplicates(subset=["smiles"], keep="first").copy()
+    if before_dupes != len(df):
+        print(f"  Removed {before_dupes - len(df)} duplicate ChEMBL structures (canonical SMILES)")
+
+    result = pd.DataFrame(
+        {
+            "smiles": df["smiles"].values,
+            "toxicity": 1,  # Auxiliary label: withdrawn => toxic, but treated as noisy
+            "source": "chembl",
+        }
+    )
+
+    print(f"  ✅ ChEMBL supplement: {len(result)} toxic compounds")
+    return result
+
+
+# ══════════════════════════════════════════════════════════════
+#  MAIN: Run all steps in sequence
 # ══════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
-    print("\n🧪 Tox21 Data Cleaning Pipeline")
+    print("\n🧪 Tox21 + ChEMBL Data Cleaning Pipeline")
     print("━" * 60)
 
-    # Step 1: Load
+    # ── Tox21 Pipeline (Steps 1-6) ────────────────────────────
     df = load_tox21()
-
-    # Step 2: Remove missing SMILES
     df = remove_missing_smiles(df)
-
-    # Step 3: Validate with RDKit
     df = validate_smiles(df)
-
-    # Step 4: Drop invalid rows
     df = drop_invalid_rows(df)
+    # Canonicalize BEFORE deduplication so we dedupe chemically (not string-wise)
+    df = canonicalize_smiles_column(df, smiles_col="smiles", output_col="smiles")
+    df = remove_duplicates(df, smiles_col="smiles")
 
-    # Step 5: Remove duplicates
-    df = remove_duplicates(df)
-
-    # Step 6: Extract multi-endpoint aggregate label and save
+    # Extract multi-endpoint aggregate label
     endpoint_df = get_multi_endpoint(df)
-    save_cleaned(endpoint_df, filename="labels.csv")
+    endpoint_df["source"] = "tox21"  # Tag source for sample weighting
 
-    # Also save the full cleaned dataset (all 12 endpoints) for later use
+    # ── ChEMBL Supplement (Step 7) ────────────────────────────
+    chembl_df = load_chembl_withdrawn()
+
+    if chembl_df is not None and len(chembl_df) > 0:
+        # Deduplicate: Tox21 labels take precedence
+        tox21_smiles = set(endpoint_df["smiles"].values)
+        chembl_new = chembl_df[~chembl_df["smiles"].isin(tox21_smiles)].copy()
+
+        overlap = len(chembl_df) - len(chembl_new)
+        print(f"\n  📊 Merge Statistics:")
+        print(f"     Tox21 compounds:         {len(endpoint_df)}")
+        print(f"     ChEMBL compounds:         {len(chembl_df)}")
+        print(f"     Overlap (Tox21 wins):     {overlap}")
+        print(f"     New from ChEMBL:          {len(chembl_new)}")
+
+        # Concatenate
+        merged = pd.concat([endpoint_df, chembl_new], ignore_index=True)
+        print(f"     Final merged dataset:     {len(merged)} compounds")
+    else:
+        merged = endpoint_df
+        print("\n  ⚠️  No ChEMBL data available, using Tox21 only.")
+
+    # ── Save ──────────────────────────────────────────────────
+    save_cleaned(merged, filename="labels.csv")
     save_cleaned(df, filename="tox21_all_endpoints_cleaned.csv")
 
-    print("\n━" * 60)
+    print("\n" + "━" * 60)
     print("🎉 Cleaning pipeline complete!")
     print("━" * 60)
