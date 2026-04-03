@@ -41,6 +41,24 @@ If we give the computer `CCO`, the computer knows exactly how many atoms are the
 
 ---
 
+## 🚀 Quick Start (No Data Download Needed!)
+
+The model has already been trained and saved. You can run the app **right now** with just three commands:
+
+```bash
+# 1. Install dependencies (only needed once)
+pip install -r requirements.txt
+
+# 2. Launch the web app
+streamlit run app/streamlit_app.py
+```
+
+Open your browser at `http://localhost:8501`. Type a SMILES code (like `CCO`) and click predict!
+
+If you want to retrain the model from scratch, see the **Full Training Workflow** section in the [README.md](README.md).
+
+---
+
 # 🚀 The Step-by-Step Journey of the Code
 
 I wrote several different computer files (scripts) to make this work. Here is exactly what every single file does, in order:
@@ -67,7 +85,7 @@ We used a tool called **RDKit**. RDKit acts like a magical measuring tape. I wro
 
 This file takes the entire Tox21 textbook and turns it into one giant wall of numbers.
 
-### Step 3: Teaching the AI Brain (`src/improve_model.py`)
+### Step 3: Teaching the AI Brain (`src/improve_model.py` and `src/compare_chembl_experiment.py`)
 Now that everything is numbers, it is time for the AI to learn! We used an algorithm called **XGBoost**.
 
 Think of XGBoost as a game of "20 Questions." It looks at the thousands of safe and toxic molecules and starts drawing decision trees:
@@ -78,7 +96,9 @@ XGBoost makes thousands of these trees, learning exactly what makes a molecule t
 
 > "Listen to the Tox21 lab labels the most. Listen to the ChEMBL withdrawn examples too, but only at half-volume."
 
-When the training is done, I save the chosen production brain into `best_model.pkl`. I also keep `tuned_xgboost_model.pkl` around as a compatibility copy so older scripts still work.
+`improve_model.py` saves the tuned model to `models/tuned_xgboost_model.pkl`. A second script, `compare_chembl_experiment.py`, then runs an **ablation study** — it trains the same model *with* and *without* ChEMBL data, compares results, and saves the winner as `models/best_model.pkl`.
+
+> **✅ The model has already been trained!** The file `models/tuned_xgboost_model.pkl` is included in this repository, so you can run the web app immediately without downloading any data or retraining. The app will use this pre-trained model out of the box.
 
 ### Step 4: Making the AI Explain Itself (`src/shap_explain.py`)
 Imagine a doctor is about to give a patient medicine. The AI yells: *"STOP! It is CRITICAL HAZARD!"* 
@@ -100,15 +120,15 @@ I used a library called **Streamlit** to build a website.
 
 I also added a **"Graceful Failure"** safety net. If a child types `I_LOVE_PIZZA` instead of a real chemical code, the app won't crash and burn. It will catch the error, smile, and put up a red box saying: *"Oops! That relies on invalid SMILES code, RDKit can't parse it."*
 
-### Step 6: Testing 250,000 New Medicines (`src/zinc_screen.py`)
+### Step 6: Testing 1,000 New Medicines (`src/zinc_screen.py`)
 To prove the AI actually works, we don't just want to predict one molecule at a time. We want to act like a giant pharmaceutical company doing a massive search for a new super-cure.
 
-We downloaded a massive library called **ZINC-250k**. This is a list of 250,000 drug-like molecules that the AI has NEVER seen before in its life. Nobody knows if they are safe or toxic!
-1. I wrote `zinc_loader.py` to organize these 250,000 new molecules.
-2. I wrote `zinc_screen.py` to grab 1,000 of them and throw them at our trained XGBoost brain at super speed.
+We use a massive library called **ZINC-250k**. This is a database of 250,000 drug-like molecules. Nobody knows for certain if each one is safe or toxic!
+1. `zinc_loader.py` organizes the ZINC molecules.
+2. `zinc_screen.py` grabs a representative sample of **1,000** molecules and sends them through our trained XGBoost brain at super speed.
 3. The AI churned through them and found a high-confidence hazard subset, while leaving borderline molecules in the **UNCERTAIN** bucket instead of pretending they were certain.
 
-We placed these results inside our Streamlit app in a special "Batch Upload" tab so the hackathon judges can see how fast and powerful the AI is when screening thousands of drugs at once.
+We placed these results inside our Streamlit app in a special "Batch Upload" tab so you can see how fast and powerful the AI is when screening thousands of drugs at once. The results are saved to `reports/zinc_screen_results.csv`.
 
 ---
 

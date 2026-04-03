@@ -17,23 +17,57 @@ To win a hackathon, your architecture needs to be simple to explain, robust to d
 ### 📂 Folder Structure
 Keep it industry-standard:
 ```text
-toxicity-project/
-├── data/
-│   ├── raw/                 # Original tox21.csv
-│   └── processed/           # Cleaned features and labels
-├── src/
-│   ├── simple_load.py       # Basic dataset inspection
-│   ├── data_loader.py       # Cleans missing/invalid SMILES
-│   ├── feature_engineering.py # Extracts RDKit 2D + Fingerprints
-│   ├── improve_model.py     # Trains & tunes XGBoost
-│   ├── evaluate_model.py    # Metric calculation (ROC/AUC/F1)
-│   └── shap_explain.py      # Generates explainability plots
-├── models/                  # Saved .pkl files
-├── reports/                 # Saved PNG evaluation and SHAP plots
+drug-toxicity-predictor/
 ├── app/
-│   └── streamlit_app.py     # Frontend web application
-├── README.md                # Submission documentation
-└── requirements.txt         # Python dependencies
+│   └── streamlit_app.py              # Frontend web application
+├── data/
+│   ├── raw/                          # Original tox21.csv (excluded from git)
+│   ├── processed/
+│   │   ├── zinc_demo_sample.csv      # Demo ZINC molecules for batch tab
+│   │   ├── features.npy              # Computed features (generated)
+│   │   ├── labels.csv                # Cleaned labels (generated)
+│   │   └── scaler.pkl                # Baseline scaler (generated)
+│   └── priority_toxins.json          # 76 high-priority toxin dictionary
+├── models/
+│   ├── tuned_xgboost_model.pkl       # ✅ Pre-trained XGBoost (included)
+│   └── best_model.pkl                # Promoted by ablation study (generated)
+├── notebooks/
+│   └── 01_eda.ipynb                  # Exploratory data analysis
+├── reports/
+│   ├── final_report.md               # Full technical write-up
+│   ├── model_metrics.json            # Baseline metrics
+│   ├── tuned_xgboost_metrics.json    # XGBoost metrics
+│   ├── zinc_screen_results.csv       # ZINC screening output
+│   ├── feature_importance.png        # Feature importance bar chart
+│   ├── shap_global_summary.png       # SHAP beeswarm plot
+│   ├── shap_local_waterfall.png      # SHAP waterfall for single molecule
+│   └── ...                           # Other evaluation plots & JSON files
+├── scripts/
+│   ├── fetch_chembl_withdrawn.py     # Fetches withdrawn drugs from ChEMBL API
+│   └── build_toxin_dictionary.py     # Builds priority_toxins.json
+├── src/
+│   ├── simple_load.py                # Basic dataset inspection
+│   ├── data_loader.py                # Cleans missing/invalid SMILES + ChEMBL merge
+│   ├── feature_engineering.py        # Extracts RDKit 2D descriptors + fingerprints
+│   ├── baseline_models.py            # Logistic Regression & Random Forest baselines
+│   ├── improve_model.py              # Trains & tunes XGBoost (saves tuned_xgboost_model.pkl)
+│   ├── compare_chembl_experiment.py  # Ablation study; promotes best_model.pkl
+│   ├── evaluate_model.py             # Metric calculation (ROC/AUC/F1/Precision)
+│   ├── shap_explain.py               # Generates global & local SHAP explainability plots
+│   ├── explainability.py             # Additional SHAP helpers
+│   ├── zinc_screen.py                # Virtual screening on 1,000 ZINC molecules
+│   ├── zinc_loader.py                # Loads ZINC-250k molecules
+│   ├── zinc_baseline.py              # Builds chemical-space baseline scaler
+│   ├── pipeline_utils.py             # Shared helpers (model load, metrics, split)
+│   ├── final_report.py               # Generates final HTML/PDF report
+│   └── inspect_data.py               # Data exploration utilities
+├── tests/
+│   └── test_demo.py                  # Smoke tests for core pipeline
+├── FOR_BEGINNERS.md                  # Plain-language guide to every module
+├── HACKATHON_GUIDE.md                # This file
+├── DEMO_SCRIPT.md                    # 1-minute pitch & live demo flow
+├── README.md                         # Main project documentation
+└── requirements.txt                  # Python dependencies
 ```
 
 ---
@@ -63,11 +97,15 @@ toxicity-project/
 
 Before finalizing your submission, double-check these critical items:
 
-- [ ] **Code Runs End-to-End:** Ensure a judge could run `pip install -r requirements.txt` followed by `streamlit run app/streamlit_app.py` without fatal crashes.
-- [ ] **Dependencies Match:** Check if `requirements.txt` includes exactly: `pandas`, `numpy`, `scikit-learn`, `xgboost`, `rdkit`, `shap`, `streamlit`, `matplotlib`, `seaborn`.
-- [ ] **No Hardcoded Absolute Paths:** Ensure all data loading in `src/` uses `os.path.join(os.path.dirname(__file__), ...)` so it works on the judge's computer, not just your Mac. *(We have already verified this).*
-- [ ] **Data Leakage Check:** Ensure that `StandardScaler` in `improve_model.py` is only `fit()` on the training set, not the entire dataset. *(Verified: `fit_transform` on train, `transform` on test).*
-- [ ] **App Error Handling:** Test the Streamlit app with an invalid SMILES string (e.g., "invalid_chemical") to ensure it shows a friendly error card instead of a raw Python traceback. *(Verified).*
+- [x] **Pre-trained Model Included:** `models/tuned_xgboost_model.pkl` is committed and the app loads it without any retraining step.
+- [x] **Code Runs End-to-End:** A judge can run `pip install -r requirements.txt` followed by `streamlit run app/streamlit_app.py` without fatal crashes.
+- [x] **Dependencies Match:** `requirements.txt` includes: `pandas`, `numpy`, `scikit-learn`, `xgboost`, `rdkit`, `shap`, `streamlit`, `matplotlib`, `seaborn`, `imbalanced-learn`, `joblib`, `tqdm`, `requests`.
+- [x] **No Hardcoded Absolute Paths:** All data loading in `src/` uses `os.path.join(os.path.dirname(__file__), ...)` so it works on any machine.
+- [x] **Data Leakage Check:** `StandardScaler` in `improve_model.py` is only `fit()` on the training set, not the entire dataset. *(Verified: `fit_transform` on train, `transform` on test).*
+- [x] **App Error Handling:** The Streamlit app handles an invalid SMILES string (e.g., `INVALID_CHEMICAL_xyz123`) with a friendly error card instead of a raw Python traceback. *(Verified).*
+- [x] **Priority Toxin Dictionary:** `data/priority_toxins.json` (76 entries) is committed and loaded by the app.
+- [x] **ZINC Screening Results:** `reports/zinc_screen_results.csv` is committed for the Batch Upload demo tab.
+- [x] **SHAP Reports:** Explainability plots saved to `reports/` (feature_importance.png, shap_global_summary.png, shap_local_waterfall.png).
 - [ ] **Live Demo Rehearsal:** Have 2 SMILES ready in your clipboard. One definitively SAFE (`CCO` - Ethanol), and one definitively TOXIC (`O=C(O)CCC(=O)c1ccc(-c2ccccc2)cc1` - sample).
 - [ ] **README Polish:** Ensure your team's names are on the `README.md`.
 
