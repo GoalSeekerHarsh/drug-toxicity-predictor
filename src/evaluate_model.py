@@ -71,7 +71,9 @@ REPORTS_DIR = os.path.join(os.path.dirname(__file__), "..", "reports")
 try:
     from .pipeline_utils import (
         DEFAULT_HAZARD_THRESHOLD,
-        classify_probabilities,
+        DEFAULT_SAFE_THRESHOLD,
+        apply_applicability_envelope,
+        apply_runtime_decision_rule,
         resolve_label_column,
         stratified_train_val_test_split,
         transform_feature_frame,
@@ -79,7 +81,9 @@ try:
 except ImportError:
     from pipeline_utils import (  # type: ignore
         DEFAULT_HAZARD_THRESHOLD,
-        classify_probabilities,
+        DEFAULT_SAFE_THRESHOLD,
+        apply_applicability_envelope,
+        apply_runtime_decision_rule,
         resolve_label_column,
         stratified_train_val_test_split,
         transform_feature_frame,
@@ -110,9 +114,22 @@ def load_model_pipeline(model_filename="baseline_best_model.pkl"):
         raise ValueError(f"{filepath} is not a model artifact.")
     model_name = artifact.get("model_name", model_filename.split('.')[0].replace('_', ' ').title())
     hazard_threshold = float(artifact.get("hazard_threshold", DEFAULT_HAZARD_THRESHOLD))
-    return artifact["model"], artifact["scaler"], model_name, artifact["feature_names"], hazard_threshold
+    safe_threshold = float(artifact.get("safe_threshold", DEFAULT_SAFE_THRESHOLD))
+    validation_envelope = artifact.get("validation_envelope", {})
+    return artifact["model"], artifact["scaler"], model_name, artifact["feature_names"], hazard_threshold, safe_threshold, validation_envelope
 
-def evaluate_and_plot(model, scaler, X_test, y_test, model_name, feature_names, artifact_id=None, decision_threshold=DEFAULT_HAZARD_THRESHOLD):
+def evaluate_and_plot(
+    model,
+    scaler,
+    X_test,
+    y_test,
+    model_name,
+    feature_names,
+    artifact_id=None,
+    decision_threshold=DEFAULT_HAZARD_THRESHOLD,
+    safe_threshold=DEFAULT_SAFE_THRESHOLD,
+    validation_envelope=None,
+):
     """Generate all critical metrics and visual plots."""
     print(f"\nEvaluating: {model_name}")
     print("="*60)
@@ -121,7 +138,14 @@ def evaluate_and_plot(model, scaler, X_test, y_test, model_name, feature_names, 
     artifact = {"model": model, "scaler": scaler, "feature_names": feature_names}
     X_test_scaled = transform_feature_frame(X_test, artifact)
     y_proba = model.predict_proba(X_test_scaled)[:, 1] # Probability of class 1
-    y_pred = classify_probabilities(y_proba, decision_threshold=decision_threshold)
+    in_envelope, _ = apply_applicability_envelope(X_test_scaled, validation_envelope)
+    runtime = apply_runtime_decision_rule(
+        y_proba,
+        in_validated_envelope=in_envelope,
+        safe_threshold=safe_threshold,
+        hazard_threshold=decision_threshold,
+    )
+    y_pred = runtime["hazard_labels"]
 
     # 2. Calculate Strict Metrics
     precision = precision_score(y_test, y_pred)
@@ -132,6 +156,7 @@ def evaluate_and_plot(model, scaler, X_test, y_test, model_name, feature_names, 
     print(f"Recall:    {recall:.4f} (It caught {recall*100:.1f}% of all actual Toxic drugs)")
     print(f"F1 Score:  {f1:.4f} (Harmonic mean of both)")
     print(f"Decision Threshold: {decision_threshold:.2f} (matches CRITICAL HAZARD cutoff)")
+    print(f"Validated Coverage: {in_envelope.mean():.4f}")
     
     # 3. AUC Metrics
     roc_auc = roc_auc_score(y_test, y_proba)
@@ -210,7 +235,7 @@ if __name__ == "__main__":
         seen_model_files = set()
         for filename in ordered_names:
             try:
-                model, scaler, model_name, feature_names, hazard_threshold = load_model_pipeline(filename)
+                model, scaler, model_name, feature_names, hazard_threshold, safe_threshold, validation_envelope = load_model_pipeline(filename)
             except ValueError:
                 print(f"Skipping non-model artifact: {filename}")
                 continue
@@ -227,6 +252,8 @@ if __name__ == "__main__":
                 feature_names,
                 artifact_id=filename,
                 decision_threshold=hazard_threshold,
+                safe_threshold=safe_threshold,
+                validation_envelope=validation_envelope,
             )
     
     print("\n✅ Evaluation complete.")

@@ -23,7 +23,12 @@ import os
 #   - python -m src.compare_chembl_experiment
 try:
     # When executed as a module: python -m src.compare_chembl_experiment
-    from .improve_model import prepare_data, tune_xgboost, evaluate_and_save  # type: ignore
+    from .improve_model import (  # type: ignore
+        calibrate_and_fit_safety_contract,
+        prepare_data,
+        tune_xgboost,
+        evaluate_and_save,
+    )
     from .pipeline_utils import save_feature_pipeline_artifact  # type: ignore
 except ImportError:
     # When executed as a script: python src/compare_chembl_experiment.py
@@ -32,7 +37,12 @@ except ImportError:
     SRC_DIR = os.path.dirname(__file__)
     if SRC_DIR not in sys.path:
         sys.path.insert(0, SRC_DIR)
-    from improve_model import prepare_data, tune_xgboost, evaluate_and_save  # type: ignore
+    from improve_model import (  # type: ignore
+        calibrate_and_fit_safety_contract,
+        prepare_data,
+        tune_xgboost,
+        evaluate_and_save,
+    )
     from pipeline_utils import save_feature_pipeline_artifact  # type: ignore
 
 
@@ -57,6 +67,14 @@ def run_one(include_chembl: bool, chembl_weight: float = 0.5, random_state: int 
     ) = prepare_data(random_state=random_state, chembl_weight=chembl_weight, include_chembl=include_chembl)
 
     model = tune_xgboost(X_train, y_train, sample_weight=w_train, random_state=random_state)
+    hazard_threshold, validation_envelope, calibration_summary, _, validation_runtime_metrics = calibrate_and_fit_safety_contract(
+        model,
+        X_train,
+        X_val,
+        y_val,
+        feature_names,
+        scaler,
+    )
 
     metrics = evaluate_and_save(
         model,
@@ -66,8 +84,16 @@ def run_one(include_chembl: bool, chembl_weight: float = 0.5, random_state: int 
         feature_names,
         artifact_name=f"tuned_xgboost_model_{tag}.pkl",
         report_name=f"chembl_ablation_{tag}.json",
-        extra_metadata={"include_chembl": bool(include_chembl), "chembl_weight": float(chembl_weight)},
+        extra_metadata={
+            "include_chembl": bool(include_chembl),
+            "chembl_weight": float(chembl_weight),
+            "validation_precision": validation_runtime_metrics["precision"],
+            "validation_recall": validation_runtime_metrics["recall"],
+        },
         update_best_model=False,
+        decision_threshold=hazard_threshold,
+        validation_envelope=validation_envelope,
+        calibration_summary=calibration_summary,
     )
     return metrics
 
@@ -102,7 +128,13 @@ if __name__ == "__main__":
         artifact["scaler"],
         artifact["feature_names"],
         filename="feature_pipeline.pkl",
-        extra_metadata={"selected_model_tag": best_tag},
+        extra_metadata={
+            "selected_model_tag": best_tag,
+            "safe_threshold": float(artifact.get("safe_threshold", 0.30)),
+            "hazard_threshold": float(artifact.get("hazard_threshold", 0.62)),
+            "validation_envelope": artifact.get("validation_envelope", {}),
+            "calibration_summary": artifact.get("calibration_summary", {}),
+        },
     )
     print(f"💾 Updated best model at {best_dst}")
     print(f"💾 Updated compatibility alias at {tuned_alias}")

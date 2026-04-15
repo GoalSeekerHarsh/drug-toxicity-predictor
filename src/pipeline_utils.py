@@ -22,6 +22,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import (
     average_precision_score,
+    brier_score_loss,
     confusion_matrix,
     f1_score,
     precision_score,
@@ -58,6 +59,9 @@ REPORTS_DIR = ROOT_DIR / "reports"
 PROCESSED_DATA_DIR = DATA_DIR / "processed"
 DEFAULT_SAFE_THRESHOLD = 0.30
 DEFAULT_HAZARD_THRESHOLD = 0.62
+TARGET_HAZARD_PRECISION = 0.90
+MIN_HAZARD_CALLS = 20
+DEFAULT_APPLICABILITY_QUANTILE = 0.975
 
 
 def resolve_label_column(labels: pd.DataFrame) -> str:
@@ -158,10 +162,196 @@ def classify_probabilities(y_proba, decision_threshold=DEFAULT_HAZARD_THRESHOLD)
     return (np.asarray(y_proba, dtype=float) >= float(decision_threshold)).astype(int)
 
 
-def compute_metrics_dict(y_true, y_proba, decision_threshold=DEFAULT_HAZARD_THRESHOLD) -> dict:
-    """Compute the standard binary classification metrics payload."""
-    y_pred = classify_probabilities(y_proba, decision_threshold=decision_threshold)
+def calibrate_hazard_threshold(
+    y_true,
+    y_proba,
+    target_precision=TARGET_HAZARD_PRECISION,
+    min_hazard_calls=MIN_HAZARD_CALLS,
+    default_threshold=DEFAULT_HAZARD_THRESHOLD,
+):
+    """Choose the hazard threshold on validation data using a precision-first rule."""
+    y_true = np.asarray(y_true, dtype=int)
+    y_proba = np.asarray(y_proba, dtype=float)
+
+    candidate_thresholds = sorted(
+        {float(default_threshold), *[float(t) for t in np.unique(np.round(y_proba, 4))]},
+        reverse=True,
+    )
+    best_any = None
+    best_target = None
+
+    for threshold in candidate_thresholds:
+        y_pred = classify_probabilities(y_proba, decision_threshold=threshold)
+        hazard_calls = int(y_pred.sum())
+        if hazard_calls < int(min_hazard_calls):
+            continue
+
+        precision = float(precision_score(y_true, y_pred, zero_division=0))
+        recall = float(recall_score(y_true, y_pred, zero_division=0))
+        candidate = {
+            "hazard_threshold": float(threshold),
+            "precision": precision,
+            "recall": recall,
+            "hazard_calls": hazard_calls,
+        }
+
+        if best_any is None or (
+            candidate["precision"],
+            candidate["recall"],
+            -candidate["hazard_threshold"],
+        ) > (
+            best_any["precision"],
+            best_any["recall"],
+            -best_any["hazard_threshold"],
+        ):
+            best_any = candidate
+
+        if precision >= float(target_precision) and (
+            best_target is None or (
+                candidate["recall"],
+                candidate["precision"],
+                -candidate["hazard_threshold"],
+            ) > (
+                best_target["recall"],
+                best_target["precision"],
+                -best_target["hazard_threshold"],
+            )
+        ):
+            best_target = candidate
+
+    chosen = best_target or best_any
+    if chosen is None:
+        fallback_pred = classify_probabilities(y_proba, decision_threshold=default_threshold)
+        chosen = {
+            "hazard_threshold": float(default_threshold),
+            "precision": float(precision_score(y_true, fallback_pred, zero_division=0)),
+            "recall": float(recall_score(y_true, fallback_pred, zero_division=0)),
+            "hazard_calls": int(fallback_pred.sum()),
+        }
+
+    summary = {
+        "target_hazard_precision": float(target_precision),
+        "min_hazard_calls": int(min_hazard_calls),
+        "selected_hazard_threshold": float(chosen["hazard_threshold"]),
+        "selected_precision": float(chosen["precision"]),
+        "selected_recall": float(chosen["recall"]),
+        "selected_hazard_calls": int(chosen["hazard_calls"]),
+        "brier_score": float(brier_score_loss(y_true, y_proba)),
+        "selection_policy": "max_recall_subject_to_precision_target_then_best_precision",
+        "meets_precision_target": bool(chosen["precision"] >= float(target_precision)),
+    }
+    return float(chosen["hazard_threshold"]), summary
+
+
+def fit_applicability_envelope(
+    X_train_scaled,
+    feature_names,
+    scaler,
+    quantile=DEFAULT_APPLICABILITY_QUANTILE,
+):
+    """Fit a simple applicability envelope on the scaled continuous feature subspace."""
+    continuous_names, _ = get_feature_partitions(feature_names, scaler=scaler)
+    continuous_count = len(continuous_names)
+    X_train_scaled = np.asarray(X_train_scaled, dtype=float)
+    X_continuous = X_train_scaled[:, :continuous_count]
+    centroid = X_continuous.mean(axis=0)
+    distances = np.linalg.norm(X_continuous - centroid, axis=1)
+    radius_threshold = float(np.quantile(distances, quantile))
+
     return {
+        "method": "scaled_continuous_centroid_radius",
+        "continuous_feature_names": continuous_names,
+        "continuous_feature_count": int(continuous_count),
+        "distance_quantile": float(quantile),
+        "radius_threshold": radius_threshold,
+        "centroid": centroid.tolist(),
+        "distance_summary": {
+            "train_mean_distance": float(distances.mean()),
+            "train_max_distance": float(distances.max()),
+        },
+    }
+
+
+def apply_applicability_envelope(feature_matrix, validation_envelope) -> tuple[np.ndarray, np.ndarray]:
+    """Return in-envelope mask and distances for one or more scaled feature rows."""
+    feature_matrix = np.asarray(feature_matrix, dtype=float)
+    if feature_matrix.ndim == 1:
+        feature_matrix = feature_matrix.reshape(1, -1)
+
+    if not validation_envelope:
+        mask = np.ones(feature_matrix.shape[0], dtype=bool)
+        return mask, np.zeros(feature_matrix.shape[0], dtype=float)
+
+    continuous_count = int(validation_envelope.get("continuous_feature_count", 0))
+    centroid = np.asarray(validation_envelope.get("centroid", []), dtype=float)
+    radius_threshold = float(validation_envelope.get("radius_threshold", np.inf))
+    if continuous_count <= 0 or centroid.size == 0:
+        mask = np.ones(feature_matrix.shape[0], dtype=bool)
+        return mask, np.zeros(feature_matrix.shape[0], dtype=float)
+
+    X_continuous = feature_matrix[:, :continuous_count]
+    distances = np.linalg.norm(X_continuous - centroid, axis=1)
+    return distances <= radius_threshold, distances
+
+
+def apply_runtime_decision_rule(
+    y_proba,
+    in_validated_envelope=None,
+    safe_threshold=DEFAULT_SAFE_THRESHOLD,
+    hazard_threshold=DEFAULT_HAZARD_THRESHOLD,
+):
+    """Apply the production SAFE/UNCERTAIN/CRITICAL HAZARD policy."""
+    y_proba = np.asarray(y_proba, dtype=float)
+    if y_proba.ndim == 0:
+        y_proba = y_proba.reshape(1)
+
+    if in_validated_envelope is None:
+        in_validated_envelope = np.ones(len(y_proba), dtype=bool)
+    else:
+        in_validated_envelope = np.asarray(in_validated_envelope, dtype=bool)
+
+    verdicts = np.full(len(y_proba), "UNCERTAIN", dtype=object)
+    review_reasons = np.full(len(y_proba), "borderline_probability", dtype=object)
+    hazard_labels = np.zeros(len(y_proba), dtype=int)
+
+    out_of_envelope = ~in_validated_envelope
+    review_reasons[out_of_envelope] = "outside_validated_envelope"
+
+    safe_mask = in_validated_envelope & (y_proba <= float(safe_threshold))
+    hazard_mask = in_validated_envelope & (y_proba >= float(hazard_threshold))
+    borderline_mask = in_validated_envelope & ~(safe_mask | hazard_mask)
+
+    verdicts[safe_mask] = "SAFE"
+    verdicts[hazard_mask] = "CRITICAL HAZARD"
+    verdicts[borderline_mask] = "UNCERTAIN"
+    hazard_labels[hazard_mask] = 1
+    review_reasons[safe_mask] = ""
+    review_reasons[hazard_mask] = ""
+
+    return {
+        "hazard_labels": hazard_labels,
+        "verdicts": verdicts.tolist(),
+        "review_reasons": review_reasons.tolist(),
+    }
+
+
+def compute_metrics_dict(
+    y_true,
+    y_proba,
+    decision_threshold=DEFAULT_HAZARD_THRESHOLD,
+    safe_threshold=DEFAULT_SAFE_THRESHOLD,
+    in_validated_envelope=None,
+):
+    """Compute ranking metrics and hazard-call metrics using the runtime decision rule."""
+    runtime = apply_runtime_decision_rule(
+        y_proba,
+        in_validated_envelope=in_validated_envelope,
+        safe_threshold=safe_threshold,
+        hazard_threshold=decision_threshold,
+    )
+    y_pred = runtime["hazard_labels"]
+    verdicts = np.asarray(runtime["verdicts"], dtype=object)
+    payload = {
         "roc_auc": float(roc_auc_score(y_true, y_proba)),
         "pr_auc": float(average_precision_score(y_true, y_proba)),
         "precision": float(precision_score(y_true, y_pred, zero_division=0)),
@@ -169,7 +359,16 @@ def compute_metrics_dict(y_true, y_proba, decision_threshold=DEFAULT_HAZARD_THRE
         "f1": float(f1_score(y_true, y_pred, zero_division=0)),
         "confusion_matrix": confusion_matrix(y_true, y_pred).tolist(),
         "decision_threshold": float(decision_threshold),
+        "safe_threshold": float(safe_threshold),
+        "critical_hazard_rate": float((verdicts == "CRITICAL HAZARD").mean()),
+        "safe_rate": float((verdicts == "SAFE").mean()),
+        "uncertain_rate": float((verdicts == "UNCERTAIN").mean()),
     }
+    if in_validated_envelope is not None:
+        in_validated_envelope = np.asarray(in_validated_envelope, dtype=bool)
+        payload["validated_coverage_rate"] = float(in_validated_envelope.mean())
+        payload["out_of_envelope_rate"] = float((~in_validated_envelope).mean())
+    return payload
 
 
 def save_metrics_report(filename: str, metrics: dict, extra_metadata: dict | None = None) -> Path:
@@ -227,6 +426,8 @@ def load_model_artifact(prefer_best=True):
             artifact["feature_names"] = list(artifact.get("feature_names", []))
             artifact.setdefault("safe_threshold", float(DEFAULT_SAFE_THRESHOLD))
             artifact.setdefault("hazard_threshold", float(DEFAULT_HAZARD_THRESHOLD))
+            artifact.setdefault("validation_envelope", {})
+            artifact.setdefault("calibration_summary", {})
             return artifact
 
     return None
@@ -390,15 +591,19 @@ def predict_with_model(
     model = artifact["model"]
     probability = model.predict_proba(payload["feature_vector"])[0]
     toxic_probability = float(probability[1])
-    if toxic_probability >= hazard_threshold:
-        verdict = "CRITICAL HAZARD"
-        prediction = 1
-    elif toxic_probability <= safe_threshold:
-        verdict = "SAFE"
-        prediction = 0
-    else:
-        verdict = "UNCERTAIN"
-        prediction = 0
+    in_validated_envelope, distances = apply_applicability_envelope(
+        payload["feature_vector"],
+        artifact.get("validation_envelope"),
+    )
+    runtime = apply_runtime_decision_rule(
+        np.asarray([toxic_probability], dtype=float),
+        in_validated_envelope=in_validated_envelope,
+        safe_threshold=safe_threshold,
+        hazard_threshold=hazard_threshold,
+    )
+    verdict = runtime["verdicts"][0]
+    prediction = int(runtime["hazard_labels"][0])
+    review_reason = runtime["review_reasons"][0]
 
     payload.update(
         {
@@ -407,6 +612,10 @@ def predict_with_model(
             "verdict": verdict,
             "safe_threshold": float(safe_threshold),
             "hazard_threshold": float(hazard_threshold),
+            "in_validated_envelope": bool(in_validated_envelope[0]),
+            "applicability_distance": float(distances[0]),
+            "review_required": verdict == "UNCERTAIN",
+            "review_reason": review_reason,
         }
     )
     return payload

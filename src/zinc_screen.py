@@ -85,6 +85,8 @@ def screen_zinc(artifact, screen_size=SCREEN_SIZE):
             "smiles":       smiles,
             "toxicity_prob": round(prob, 4),
             "verdict":      verdict,
+            "in_validated_envelope": bool(inference.get("in_validated_envelope", True)),
+            "review_reason": inference.get("review_reason", ""),
             "logP":         row.get("logP", None),
             "qed":          row.get("qed", None),
             "SAS":          row.get("SAS", None),
@@ -103,6 +105,7 @@ def print_and_save_summary(results_df):
     n_hazard = (results_df["verdict"] == "CRITICAL HAZARD").sum()
     n_safe   = (results_df["verdict"] == "SAFE").sum()
     n_uncertain = (results_df["verdict"] == "UNCERTAIN").sum()
+    n_out_of_envelope = (~results_df["in_validated_envelope"]).sum() if "in_validated_envelope" in results_df.columns else 0
     pct_tox  = n_hazard / total * 100 if total > 0 else 0
 
     print("\n" + "=" * 60)
@@ -112,6 +115,7 @@ def print_and_save_summary(results_df):
     print(f"  Predicted CRITICAL HAZARD: {n_hazard:,} ({pct_tox:.1f}%)")
     print(f"  Predicted SAFE:           {n_safe:,}")
     print(f"  Predicted UNCERTAIN:      {n_uncertain:,}")
+    print(f"  Outside validated envelope: {n_out_of_envelope:,}")
 
     print("\n  🏆 Top 10 Highest-Risk Molecules (sorted by toxicity probability):")
     top_hits = results_df.sort_values("toxicity_prob", ascending=False).head(10)
@@ -130,6 +134,7 @@ def print_and_save_summary(results_df):
         f.write(f"Predicted CRITICAL HAZARD: {n_hazard:,} ({pct_tox:.1f}%)\n")
         f.write(f"Predicted SAFE:           {n_safe:,}\n")
         f.write(f"Predicted UNCERTAIN:      {n_uncertain:,}\n\n")
+        f.write(f"Outside validated envelope: {n_out_of_envelope:,}\n\n")
         f.write("Top 10 Highest-Risk Molecules:\n")
         f.write(top_hits[["smiles", "toxicity_prob"]].to_string(index=False))
     print(f"📝  Summary saved to: {txt_path}")

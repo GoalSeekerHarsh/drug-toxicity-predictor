@@ -47,6 +47,7 @@ def build_report() -> str:
     tuned = _load_json(REPORTS_DIR / "tuned_xgboost_metrics.json")
     with_chembl = _load_json(REPORTS_DIR / "chembl_ablation_with_chembl.json")
     without_chembl = _load_json(REPORTS_DIR / "chembl_ablation_without_chembl.json")
+    safety_validation = _load_json(REPORTS_DIR / "safety_validation.json")
     top_features_path = REPORTS_DIR / "top_features.csv"
     top_features = pd.read_csv(top_features_path) if top_features_path.exists() else None
     artifact = load_model_artifact(prefer_best=True)
@@ -113,7 +114,22 @@ def build_report() -> str:
     else:
         lines.append("- No production artifact available.")
 
-    lines.extend(["", "## 5. Explainability"])
+    lines.extend(["", "## 5. Safety Validation"])
+    if safety_validation:
+        random_metrics = safety_validation.get("random_split", {}).get("metrics", {})
+        scaffold_metrics = safety_validation.get("scaffold_split", {}).get("metrics", {})
+        lines.extend(
+            [
+                f"- Random-split hazard precision / recall: **{random_metrics.get('precision', 0.0):.4f} / {random_metrics.get('recall', 0.0):.4f}**",
+                f"- Random-split validated coverage: **{random_metrics.get('validated_coverage_rate', 0.0):.4f}**",
+                f"- Scaffold-split hazard precision / recall: **{scaffold_metrics.get('precision', 0.0):.4f} / {scaffold_metrics.get('recall', 0.0):.4f}**",
+                f"- Scaffold-split validated coverage: **{scaffold_metrics.get('validated_coverage_rate', 0.0):.4f}**",
+            ]
+        )
+    else:
+        lines.append("- Safety validation report not available yet. Run `python -m src.safety_validation`.")
+
+    lines.extend(["", "## 6. Explainability"])
     if top_features is not None and not top_features.empty:
         lines.append("- Top SHAP features currently saved in `reports/top_features.csv`:")
         for _, row in top_features.head(10).iterrows():
@@ -126,10 +142,11 @@ def build_report() -> str:
     lines.extend(
         [
             "",
-            "## 6. Runtime Notes",
+            "## 7. Runtime Notes",
             "- The Streamlit app now prefers `models/best_model.pkl` and falls back only when needed.",
             "- The priority toxin dictionary is checked before ML feature generation.",
             "- Runtime predictions are triaged as SAFE, UNCERTAIN, or CRITICAL HAZARD so the app does not overstate certainty.",
+            "- Molecules outside the validated applicability envelope are forced to UNCERTAIN and require review.",
             "- External hazard lists remain dictionary-only in this pass; they are not merged into training labels.",
         ]
     )

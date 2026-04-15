@@ -1,19 +1,26 @@
 {
   "roc_auc": 0.7731238687520305,
   "pr_auc": 0.7118853419161022,
-  "precision": 0.9487179487179487,
-  "recall": 0.17011494252873563,
-  "f1": 0.2884990253411306,
+  "precision": 1.0,
+  "recall": 0.09195402298850575,
+  "f1": 0.16842105263157894,
   "confusion_matrix": [
     [
-      739,
-      4
+      743,
+      0
     ],
     [
-      361,
-      74
+      395,
+      40
     ]
   ],
-  "decision_threshold": 0.62,
-  "include_chembl": true
+  "decision_threshold": 0.6426,
+  "safe_threshold": 0.3,
+  "critical_hazard_rate": 0.03395585738539898,
+  "safe_rate": 0.39728353140916806,
+  "uncertain_rate": 0.568760611205433,
+  "validated_coverage_rate": 0.9770797962648556,
+  "out_of_envelope_rate": 0.022920203735144314,
+  "include_chembl": true,
+  "target_hazard_precision": 0.9
 }

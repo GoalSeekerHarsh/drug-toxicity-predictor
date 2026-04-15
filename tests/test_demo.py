@@ -13,6 +13,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.pipeline_utils import (  # noqa: E402
+    DEFAULT_HAZARD_THRESHOLD,
     build_scaled_feature_vector,
     load_model_artifact,
     load_priority_toxin_dict,
@@ -62,6 +63,9 @@ def test_runtime_loader_prefers_best_model():
     assert artifact is not None
     assert Path(artifact["artifact_path"]).name == "best_model.pkl"
     assert len(artifact["feature_names"]) > 1000
+    assert float(artifact["hazard_threshold"]) > 0.0
+    assert "validation_envelope" in artifact
+    assert "calibration_summary" in artifact
 
 
 def test_non_dictionary_compound_flows_into_ml_inference():
@@ -85,6 +89,37 @@ def test_non_dictionary_compound_flows_into_ml_inference():
     assert inference["prediction"] in {0, 1}
     assert inference["feature_vector"].shape == (1, len(artifact["feature_names"]))
     assert 0.0 <= float(inference["probability"][1]) <= 1.0
+
+
+def test_out_of_envelope_samples_are_forced_to_review():
+    artifact = load_model_artifact(prefer_best=True)
+    assert artifact is not None
+
+    forced_review_artifact = dict(artifact)
+    forced_review_artifact["validation_envelope"] = {
+        "method": "scaled_continuous_centroid_radius",
+        "continuous_feature_count": len(artifact["validation_envelope"].get("continuous_feature_names", [])) or 217,
+        "radius_threshold": 0.0,
+        "centroid": [0.0] * (len(artifact["validation_envelope"].get("continuous_feature_names", [])) or 217),
+    }
+
+    inference = predict_with_model("CCO", forced_review_artifact)
+    assert inference["verdict"] == "UNCERTAIN"
+    assert inference["review_required"] is True
+    assert inference["review_reason"] == "outside_validated_envelope"
+    assert inference["in_validated_envelope"] is False
+
+
+def test_in_envelope_low_risk_samples_can_still_be_safe():
+    artifact = load_model_artifact(prefer_best=True)
+    assert artifact is not None
+
+    inference = predict_with_model("CCO", artifact)
+    assert inference["in_validated_envelope"] in {True, False}
+    if inference["in_validated_envelope"]:
+        assert inference["verdict"] in {"SAFE", "UNCERTAIN", "CRITICAL HAZARD"}
+        if float(inference["probability"][1]) <= float(artifact["safe_threshold"]):
+            assert inference["verdict"] == "SAFE"
 
 
 def test_scaled_feature_vector_matches_artifact_shape():
@@ -112,3 +147,8 @@ def test_compare_chembl_experiment_imports_as_module_and_script():
     result = runpy.run_path(str(ROOT / "src" / "compare_chembl_experiment.py"), run_name="__codex_test__")
 
     assert "run_one" in result
+
+
+def test_safety_validation_module_imports():
+    module = importlib.import_module("src.safety_validation")
+    assert hasattr(module, "run_random_split_validation")

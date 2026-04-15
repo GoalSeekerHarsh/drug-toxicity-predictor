@@ -178,7 +178,11 @@ def predict_and_explain(smiles_or_name, artifact):
         "risk_level": verdict,
         "recommendation": "N/A",
         "confidence": "N/A",
-        "top_features": "N/A"
+        "top_features": "N/A",
+        "in_validated_envelope": inference.get("in_validated_envelope", True),
+        "review_required": inference.get("review_required", False),
+        "review_reason": inference.get("review_reason", ""),
+        "applicability_distance": inference.get("applicability_distance"),
     }
 
     shap_values = None
@@ -209,7 +213,11 @@ def predict_and_explain(smiles_or_name, artifact):
             
             
     # Calculate detailed metadata fields
-    if verdict == "SAFE":
+    if not metadata["in_validated_envelope"]:
+        metadata["risk_level"] = "UNCERTAIN"
+        metadata["recommendation"] = "Human review required"
+        metadata["confidence"] = "Outside validated envelope"
+    elif verdict == "SAFE":
         metadata["risk_level"] = "SAFE"
         metadata["recommendation"] = "Proceed"
     elif verdict == "UNCERTAIN":
@@ -219,7 +227,9 @@ def predict_and_explain(smiles_or_name, artifact):
         metadata["risk_level"] = "CRITICAL HAZARD"
         metadata["recommendation"] = "Reject / High Risk"
         
-    if prob >= 0.70 or prob <= 0.20:
+    if metadata["confidence"] == "Outside validated envelope":
+        pass
+    elif prob >= 0.70 or prob <= 0.20:
         metadata["confidence"] = "High confidence"
     elif prob >= 0.55 or prob <= 0.35:
         metadata["confidence"] = "Moderate confidence"
@@ -365,6 +375,8 @@ with tab1:
                 st.markdown(f"**Model Confidence:** {meta['confidence']}")
                 st.markdown(f"**Recommended Action:** {meta['recommendation']}")
                 st.markdown(f"**Top Features:** {meta['top_features']}")
+                if not meta.get("in_validated_envelope", True):
+                    st.markdown("**Safety Gate:** Outside validated applicability envelope")
 
             st.write("") # Spacing
             

@@ -35,9 +35,14 @@ try:
     from .pipeline_utils import (
         DEFAULT_HAZARD_THRESHOLD,
         DEFAULT_SAFE_THRESHOLD,
+        MIN_HAZARD_CALLS,
+        TARGET_HAZARD_PRECISION,
+        apply_applicability_envelope,
         build_sample_weights,
+        calibrate_hazard_threshold,
         classify_probabilities,
         compute_metrics_dict,
+        fit_applicability_envelope,
         get_feature_partitions,
         resolve_label_column,
         save_metrics_report,
@@ -49,9 +54,14 @@ except ImportError:
     from pipeline_utils import (  # type: ignore
         DEFAULT_HAZARD_THRESHOLD,
         DEFAULT_SAFE_THRESHOLD,
+        MIN_HAZARD_CALLS,
+        TARGET_HAZARD_PRECISION,
+        apply_applicability_envelope,
         build_sample_weights,
+        calibrate_hazard_threshold,
         classify_probabilities,
         compute_metrics_dict,
+        fit_applicability_envelope,
         get_feature_partitions,
         resolve_label_column,
         save_metrics_report,
@@ -214,12 +224,22 @@ def evaluate_and_save(
     extra_metadata=None,
     update_best_model=True,
     decision_threshold=DEFAULT_HAZARD_THRESHOLD,
+    safe_threshold=DEFAULT_SAFE_THRESHOLD,
+    validation_envelope=None,
+    calibration_summary=None,
 ):
     """Evaluate model on test set, save model artifact + metrics report."""
     
     y_proba = model.predict_proba(X_test)[:, 1]
+    in_validated_envelope, _ = apply_applicability_envelope(X_test, validation_envelope)
 
-    metrics = compute_metrics_dict(y_test, y_proba, decision_threshold=decision_threshold)
+    metrics = compute_metrics_dict(
+        y_test,
+        y_proba,
+        decision_threshold=decision_threshold,
+        safe_threshold=safe_threshold,
+        in_validated_envelope=in_validated_envelope,
+    )
     roc_auc = metrics["roc_auc"]
     pr_auc = metrics["pr_auc"]
     f1 = metrics["f1"]
@@ -251,8 +271,10 @@ def evaluate_and_save(
         "scaler": scaler,
         "feature_names": feature_names,
         "model_name": "Tuned XGBoost",
-        "safe_threshold": float(DEFAULT_SAFE_THRESHOLD),
+        "safe_threshold": float(safe_threshold),
         "hazard_threshold": float(decision_threshold),
+        "validation_envelope": validation_envelope or {},
+        "calibration_summary": calibration_summary or {},
     }
     joblib.dump(artifact, filepath)
     print(f"\n💾 Saved tuned model to {filepath}")
@@ -260,7 +282,13 @@ def evaluate_and_save(
         scaler,
         feature_names,
         filename="feature_pipeline.pkl",
-        extra_metadata=extra_metadata,
+        extra_metadata={
+            **(extra_metadata or {}),
+            "safe_threshold": float(safe_threshold),
+            "hazard_threshold": float(decision_threshold),
+            "validation_envelope": validation_envelope or {},
+            "calibration_summary": calibration_summary or {},
+        },
     )
     print(f"💾 Saved shared feature pipeline to {pipeline_path}")
 
@@ -275,6 +303,45 @@ def evaluate_and_save(
 
     return metrics
 
+
+def calibrate_and_fit_safety_contract(
+    model,
+    X_train,
+    X_val,
+    y_val,
+    feature_names,
+    scaler,
+    safe_threshold=DEFAULT_SAFE_THRESHOLD,
+    target_hazard_precision=TARGET_HAZARD_PRECISION,
+    min_hazard_calls=MIN_HAZARD_CALLS,
+):
+    """Use validation data to choose the hazard threshold and fit the applicability envelope."""
+    y_val_proba = model.predict_proba(X_val)[:, 1]
+    hazard_threshold, calibration_summary = calibrate_hazard_threshold(
+        y_val,
+        y_val_proba,
+        target_precision=target_hazard_precision,
+        min_hazard_calls=min_hazard_calls,
+        default_threshold=DEFAULT_HAZARD_THRESHOLD,
+    )
+    validation_envelope = fit_applicability_envelope(X_train, feature_names, scaler=scaler)
+    in_val_envelope, _ = apply_applicability_envelope(X_val, validation_envelope)
+    validation_runtime_metrics = compute_metrics_dict(
+        y_val,
+        y_val_proba,
+        decision_threshold=hazard_threshold,
+        safe_threshold=safe_threshold,
+        in_validated_envelope=in_val_envelope,
+    )
+    calibration_summary = {
+        **calibration_summary,
+        "validated_coverage_rate": validation_runtime_metrics.get("validated_coverage_rate"),
+        "validation_precision": validation_runtime_metrics["precision"],
+        "validation_recall": validation_runtime_metrics["recall"],
+        "validation_uncertain_rate": validation_runtime_metrics["uncertain_rate"],
+    }
+    return hazard_threshold, validation_envelope, calibration_summary, y_val_proba, validation_runtime_metrics
+
 # ══════════════════════════════════════════════════════════════
 #  MAIN EXECUTION
 # ══════════════════════════════════════════════════════════════
@@ -288,18 +355,22 @@ if __name__ == "__main__":
     best_xgb_model = tune_xgboost(X_train_scaled, y_train, sample_weight=w_train)
     
     # Quick sanity check on validation before final test
-    try:
-        y_val_proba = best_xgb_model.predict_proba(X_val_scaled)[:, 1]
-        y_val_pred = classify_probabilities(y_val_proba, decision_threshold=DEFAULT_HAZARD_THRESHOLD)
-        val_precision = precision_score(y_val, y_val_pred)
-        val_recall = recall_score(y_val, y_val_pred)
-        val_roc = roc_auc_score(y_val, y_val_proba)
-        print(
-            f"\nValidation @ threshold {DEFAULT_HAZARD_THRESHOLD:.2f}: "
-            f"ROC-AUC={val_roc:.4f} | Precision={val_precision:.4f} | Recall={val_recall:.4f}"
-        )
-    except Exception:
-        pass
+    hazard_threshold, validation_envelope, calibration_summary, y_val_proba, validation_runtime_metrics = calibrate_and_fit_safety_contract(
+        best_xgb_model,
+        X_train_scaled,
+        X_val_scaled,
+        y_val,
+        feature_names,
+        scaler,
+        safe_threshold=DEFAULT_SAFE_THRESHOLD,
+    )
+    print(
+        f"\nValidation @ calibrated threshold {hazard_threshold:.4f}: "
+        f"ROC-AUC={roc_auc_score(y_val, y_val_proba):.4f} | "
+        f"Precision={validation_runtime_metrics['precision']:.4f} | "
+        f"Recall={validation_runtime_metrics['recall']:.4f} | "
+        f"Coverage={validation_runtime_metrics.get('validated_coverage_rate', 1.0):.4f}"
+    )
 
     # Evaluate final model on the test set
     evaluate_and_save(
@@ -310,8 +381,14 @@ if __name__ == "__main__":
         feature_names,
         artifact_name="tuned_xgboost_model.pkl",
         report_name="tuned_xgboost_metrics.json",
-        extra_metadata={"include_chembl": True},
-        decision_threshold=DEFAULT_HAZARD_THRESHOLD,
+        extra_metadata={
+            "include_chembl": True,
+            "target_hazard_precision": TARGET_HAZARD_PRECISION,
+        },
+        decision_threshold=hazard_threshold,
+        safe_threshold=DEFAULT_SAFE_THRESHOLD,
+        validation_envelope=validation_envelope,
+        calibration_summary=calibration_summary,
     )
     
     print("\nPipeline finished successfully. 🎉")
