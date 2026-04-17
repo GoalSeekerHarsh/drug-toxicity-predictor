@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ToxPredict Pro | Neural Toxicity Analyzer</title>
+    <meta name="description" content="Advanced AI drug toxicity prediction powered by an unsupervised chemical space baseline and high-precision XGBoost.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- Feather Icons -->
+    <script src="https://unpkg.com/feather-icons"></script>
+</head>
+<body>
+    <!-- Background Animated Elements -->
+    <div class="bg-orb orb-1"></div>
+    <div class="bg-orb orb-2"></div>
+    <div class="bg-orb orb-3"></div>
+
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar glass-panel">
+            <div class="brand">
+                <div class="logo-box">
+                    <i data-feather="hexagon" class="logo-icon"></i>
+                </div>
+                <h1>ToxPredict <span class="accent">Pro</span></h1>
+            </div>
+            
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active">
+                    <i data-feather="activity"></i> Analysis
+                </a>
+                <a href="#" class="nav-item">
+                    <i data-feather="database"></i> Registry
+                </a>
+                <a href="#" class="nav-item">
+                    <i data-feather="package"></i> Endpoints
+                </a>
+            </nav>
+
+            <div class="sidebar-stats">
+                <div class="stat-card">
+                    <i data-feather="shield"></i>
+                    <div class="stat-info">
+                        <span class="stat-label">Priority Registry</span>
+                        <span class="stat-value" id="dict-size">Loading...</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <i data-feather="cpu"></i>
+                    <div class="stat-info">
+                        <span class="stat-label">Active Model</span>
+                        <span class="stat-value" id="model-name">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-nav">
+                <h2>Molecular Hazard Screening</h2>
+                <div class="user-profile">
+                    <img src="https://ui-avatars.com/api/?name=Harsh+Gupta&background=2C333D&color=fff" alt="User Avatar">
+                </div>
+            </header>
+
+            <section class="hero-section">
+                <h1>Predict Chemical <span class="gradient-text">Toxicity</span></h1>
+                <p>Input a chemical name or SMILES string to analyze molecular hazards against Tox21 endpoints and FDA/EPA/ChEMBL priority registries.</p>
+                
+                <div class="search-container glass-panel">
+                    <i data-feather="search" class="search-icon"></i>
+                    <input type="text" id="query-input" placeholder="e.g. Aspirin, Formaldehyde, Trotglitazone, CNC...">
+                    <button id="analyze-btn" class="btn-primary">
+                        <span class="btn-text">Analyze Molecule</span>
+                        <div class="loader hidden"></div>
+                    </button>
+                </div>
+                <div class="resolution-badge hidden" id="resolution-badge">
+                    <i data-feather="check-circle"></i> Resolved via PubChem API
+                </div>
+            </section>
+
+            <!-- Results Section -->
+            <section class="results-section hidden" id="results-section">
+                <!-- Toxicity Verdict Card -->
+                <div class="verdict-card glass-panel" id="verdict-card">
+                    <div class="verdict-header">
+                        <div class="verdict-icon-box" id="verdict-icon-box">
+                            <i data-feather="alert-triangle" id="verdict-icon"></i>
+                        </div>
+                        <div class="verdict-titles">
+                            <h3 id="verdict-title">Processing...</h3>
+                            <p id="verdict-subtitle">Awaiting prediction</p>
+                        </div>
+                        <div class="confidence-badge" id="confidence-badge">
+                            98% Confidence
+                        </div>
+                    </div>
+                    
+                    <!-- Progress Bar for Probability -->
+                    <div class="probability-container hidden" id="probability-container">
+                        <div class="prob-header">
+                            <span>Hazard Probability</span>
+                            <span id="prob-percentage">0%</span>
+                        </div>
+                        <div class="prob-track">
+                            <div class="prob-fill" id="prob-fill"></div>
+                            <!-- Threshold Markers -->
+                            <div class="threshold safe-t" style="left: 30%;"><span>30%</span></div>
+                            <div class="threshold danger-t" style="left: 62%;"><span>62%</span></div>
+                        </div>
+                    </div>
+
+                    <!-- Priority Toxin Dictionary Alert -->
+                    <div class="priority-alert hidden" id="priority-alert">
+                        <div class="alert-icon"><i data-feather="zap"></i></div>
+                        <div class="alert-content">
+                            <h4>Critical Registry Match</h4>
+                            <p>This molecule bypassed ML inference as it exists in a recognized hazard registry.</p>
+                            <ul class="registry-details">
+                                <li><strong>Compound:</strong> <span id="reg-name">-</span></li>
+                                <li><strong>Registry:</strong> <span id="reg-source">-</span></li>
+                                <li><strong>Hazard Class:</strong> <span id="reg-hazard">-</span></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Secondary Metadata Cards -->
+                <div class="meta-grid">
+                    <div class="meta-card glass-panel slide-up delay-1">
+                        <i data-feather="hash"></i>
+                        <h4>Canonical SMILES</h4>
+                        <code id="meta-smiles" class="scroll-code">-</code>
+                    </div>
+                    <div class="meta-card glass-panel slide-up delay-2">
+                        <i data-feather="target"></i>
+                        <h4>Applicability Domain</h4>
+                        <p id="meta-domain">Unknown</p>
+                        <small class="hint">Tested against ZINC-250k baseline.</small>
+                    </div>
+                </div>
+
+            </section>
+            
+            <div class="empty-state" id="empty-state">
+                <i data-feather="inbox" class="empty-icon"></i>
+                <p>Your analysis reports will appear here.<br>Enter a molecule above to begin.</p>
+            </div>
+            
+        </main>
+    </div>
+
+    <!-- Initialize Scripts -->
+    <script>
+        feather.replace();
+    </script>
+    <script src="app.js"></script>
+</body>
+</html>
