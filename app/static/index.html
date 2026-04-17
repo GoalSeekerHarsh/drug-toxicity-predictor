@@ -34,10 +34,10 @@
                 <a href="#" class="nav-item active">
                     <i data-feather="activity"></i> Analysis
                 </a>
-                <a href="#" class="nav-item">
+                <a href="#" class="nav-item inactive-link" data-feat="Toxin Registry Database">
                     <i data-feather="database"></i> Registry
                 </a>
-                <a href="#" class="nav-item">
+                <a href="#" class="nav-item inactive-link" data-feat="Tox21 Endpoints Info">
                     <i data-feather="package"></i> Endpoints
                 </a>
             </nav>
@@ -64,7 +64,7 @@
         <main class="main-content">
             <header class="top-nav">
                 <h2>Molecular Hazard Screening</h2>
-                <div class="user-profile">
+                <div class="user-profile inactive-link" data-feat="User Profile Settings" style="cursor: pointer;">
                     <img src="https://ui-avatars.com/api/?name=Harsh+Gupta&background=2C333D&color=fff" alt="User Avatar">
                 </div>
             </header>
@@ -156,6 +156,9 @@
             
         </main>
     </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="toast-container"></div>
 
     <!-- Initialize Scripts -->
     <script>

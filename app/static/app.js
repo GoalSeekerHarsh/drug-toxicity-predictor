@@ -9,7 +9,32 @@ document.addEventListener('DOMContentLoaded', () => {
     inputField.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') handleAnalysis();
     });
+
+    // Wire up inactive buttons for demo purposes
+    document.querySelectorAll('.inactive-link').forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const featureName = e.currentTarget.getAttribute('data-feat') || 'This feature';
+            showToast(`${featureName} is disabled in the Hackathon Demo.`);
+        });
+    });
 });
+
+function showToast(message) {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.innerHTML = `<i data-feather="info"></i> <span>${message}</span>`;
+    container.appendChild(toast);
+    feather.replace();
+    
+    // Remove after animation finishes (3.4s)
+    setTimeout(() => {
+        if(container.contains(toast)) {
+            container.removeChild(toast);
+        }
+    }, 3500);
+}
 
 async function fetchStats() {
     try {
