@@ -10,6 +10,20 @@ The pieces you build with are invisible to the human eye. They are called **atom
 
 ---
 
+## 🚦 Quick Start (For the Impatient)
+You don't need to read this whole guide to run the app. Just do this:
+
+```bash
+git clone https://github.com/GoalSeekerHarsh/drug-toxicity-predictor.git
+cd drug-toxicity-predictor
+pip install -r requirements.txt
+streamlit run app/streamlit_app.py
+```
+
+Open `http://localhost:8501` in your browser, type a chemical code (SMILES) such as `CCO`, and click **Predict**. The pre-trained model is already included — no training required!
+
+---
+
 ## 🛑 What is the Big Problem?
 When a scientist invents a brand new recipe for a medicine, they have no idea if the new molecule will cure a person or accidentally poison them.
 
@@ -78,7 +92,7 @@ XGBoost makes thousands of these trees, learning exactly what makes a molecule t
 
 > "Listen to the Tox21 lab labels the most. Listen to the ChEMBL withdrawn examples too, but only at half-volume."
 
-When the training is done, I save the chosen production brain into `best_model.pkl`. I also keep `tuned_xgboost_model.pkl` around as a compatibility copy so older scripts still work.
+When the training is done, the trained brain is saved as `models/tuned_xgboost_model.pkl`. This file is already included in the repository — you don't need to re-train to use the app! There is also a second, special brain called `models/best_model.pkl` that is created when you run the ablation experiment (Step 5 of the pipeline). The app always tries to use `best_model.pkl` first, and falls back to `tuned_xgboost_model.pkl` when `best_model.pkl` is not present. Both files are XGBoost brains trained the same way; `best_model.pkl` is simply the winner of a head-to-head competition between a Tox21-only and a Tox21+ChEMBL training run.
 
 ### Step 4: Making the AI Explain Itself (`src/shap_explain.py`)
 Imagine a doctor is about to give a patient medicine. The AI yells: *"STOP! It is CRITICAL HAZARD!"* 
